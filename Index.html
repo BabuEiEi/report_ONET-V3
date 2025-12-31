@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+  
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+
+  <style>
+    body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    button.dt-button { background-image: none !important; background-color: white !important; border: 1px solid #d1d5db !important; border-radius: 0.375rem !important; padding: 0.375rem 0.75rem !important; color: #374151 !important; }
+    button.dt-button:hover { background-color: #f3f4f6 !important; color: #2563eb !important; border-color: #2563eb !important; }
+    #sidebar { transition: width 0.3s ease-in-out; }
+    .sidebar-text { transition: opacity 0.2s, display 0.2s; white-space: nowrap; }
+    .hide-text .sidebar-text { display: none; opacity: 0; }
+    .hide-text .sidebar-link { justify-content: center; padding-left: 0; padding-right: 0; }
+    .hide-text .sidebar-header { display: none; }
+    .admin-card { transition: all 0.3s ease; border-top: 4px solid transparent; }
+    .admin-card:hover { transform: translateY(-3px); border-top-color: #2563eb; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    @media print {
+        .no-print, nav, aside, #edit-modal, .dataTables_filter, .dataTables_length, .dt-buttons { display: none !important; }
+        #page-dashboard { height: auto; overflow: visible; }
+        main { margin: 0; padding: 0; background: white; width: 100%; }
+        #content-area { border: none; box-shadow: none; }
+        .print-area { box-shadow: none !important; border: none !important; width: 100% !important; max-width: 100% !important; }
+        body { background-color: white; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loader" class="fixed inset-0 bg-white/80 z-[70] flex flex-col items-center justify-center hidden backdrop-blur-sm">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-600 border-r-4 border-blue-100"></div>
+    <p class="mt-4 text-gray-600 font-semibold animate-pulse">กำลังประมวลผล...</p>
+  </div>
+
+<div id="page-login" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div class="bg-white/90 backdrop-blur p-8 rounded-2xl shadow-xl w-full max-w-md border border-white relative">
+      
+      <div class="text-center mb-6">
+        <img id="login-logo" src="https://cdn.jsdelivr.net/gh/BabuEiEi/images/image - แก้ไขแล้ว.png" class="h-24 mx-auto mb-4 drop-shadow-md">
+        
+        <h2 class="text-xl font-bold text-gray-800 leading-tight">ระบบบริหารจัดการทดสอบ<br>O-NET ม.6</h2>
+        <p class="text-gray-500 text-sm font-medium">(Digital Testing)</p>
+        <p class="text-indigo-600 font-bold mt-2 text-sm">ศูนย์ประสานงานการจัดสอบ สพม.พิษณุโลก อุตรดิตถ์</p>
+      </div>
+
+      <form onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+            <label class="block text-sm font-bold text-gray-700 mb-1 pl-1">ชื่อผู้ใช้งาน / รหัสโรงเรียน</label>
+            <input type="text" id="username" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white/50" placeholder="กรอก Username หรือ รหัสโรงเรียน" required>
+        </div>
+        <div>
+            <label class="block text-sm font-bold text-gray-700 mb-1 pl-1">รหัสผ่าน</label>
+            <input type="password" id="password" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition bg-white/50" placeholder="**********" required>
+        </div>
+        
+        <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-lg hover:shadow-lg hover:opacity-90 transition duration-200 mt-4">เข้าสู่ระบบ</button>
+      </form>
+
+      <div class="mt-8 text-center border-t border-gray-200/60 pt-4">
+         <p class="text-xs text-gray-400">© 2025 Copyright | พัฒนาโดย นายภัทรพล แก้วเสนา</p>
+      </div>
+    </div>
+</div>
+
+  <div id="page-dashboard" class="hidden min-h-screen flex flex-col">
+    <nav class="bg-white shadow-md z-40 sticky top-0 h-16">
+      <div class="max-w-full px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center">
+             <button onclick="toggleSidebar()" class="text-gray-500 hover:text-blue-600 mr-4"><i class="fas fa-bars fa-lg"></i></button>
+             <img id="nav-logo" src="" class="h-10 w-auto mr-3 hidden">
+             <div><h1 class="text-lg font-bold text-gray-800 hidden md:block">ระบบบริหารจัดการทดสอบ O-NET ประจำปีการศึกษา 2568</h1><p id="user-display-name" class="text-xs text-blue-600 font-bold md:hidden"></p></div>
+          </div>
+          <div class="flex items-center space-x-4">
+            <div class="text-right mr-2 hidden md:block"><p id="user-name" class="text-sm font-bold text-gray-800"></p><p id="user-role" class="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full inline-block"></p></div>
+            <button onclick="logout()" class="text-gray-400 hover:text-red-500 p-2"><i class="fas fa-power-off fa-lg"></i></button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="flex flex-1 overflow-hidden">
+      <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col shadow-sm flex-shrink-0 z-30">
+        <div class="p-4 flex-1 overflow-y-auto overflow-x-hidden"><p class="sidebar-header text-xs text-gray-400 uppercase font-bold mb-4 tracking-wider whitespace-nowrap">เมนูหลัก</p><ul class="space-y-1" id="menu-list"></ul></div>
+      </aside>
+      <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 relative w-full">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex justify-between items-center mb-6 no-print">
+              <h2 id="page-title" class="text-2xl font-bold text-gray-800 border-l-4 border-blue-500 pl-3">หน้าแรก</h2>
+              <div class="flex space-x-3">
+                <button id="btn-add-data" onclick="addItem()" class="hidden bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 shadow-sm items-center"><i class="fas fa-plus mr-2"></i> เพิ่มข้อมูล</button>
+                <button onclick="refreshData()" class="bg-white border text-gray-600 px-4 py-2 rounded-lg text-sm hover:text-blue-600 hover:shadow-sm flex items-center"><i class="fas fa-sync-alt mr-2"></i> อัปเดต</button>
+              </div>
+            </div>
+            <div id="content-area" class="bg-white rounded-xl shadow-sm border border-gray-200 p-1 min-h-[500px] hidden"></div>
+            <div id="card-area" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden pb-8"></div>
+        </div>
+      </main>
+    </div>
+    <footer class="bg-white border-t border-gray-200 py-4 z-30 text-center text-xs text-gray-500 no-print">© 2025 Copyright | พัฒนาโดย นายภัทรพล แก้วเสนา ศึกษานิเทศก์ สพม.พิษณุโลก อุตรดิตถ์</footer>
+  </div>
+
+  <div id="edit-modal" class="fixed inset-0 z-50 hidden overflow-y-auto no-print">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick="closeModal()"></div>
+      <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10"><i id="modal-icon" class="fas fa-edit text-blue-600"></i></div>
+            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full"><h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">จัดการข้อมูล</h3><div class="mt-4 space-y-3 max-h-[60vh] overflow-y-auto pr-2" id="modal-form-content"></div></div>
+          </div>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-2">
+          <button type="button" onclick="saveData()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 sm:w-auto sm:text-sm">บันทึก</button>
+          <button type="button" onclick="closeModal()" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:w-auto sm:text-sm">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
