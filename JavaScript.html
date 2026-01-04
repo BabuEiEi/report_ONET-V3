@@ -1,489 +1,490 @@
 <script>
-  // ==========================================
-  // 1. CONFIGURATION & VARIABLES
-  // ==========================================
-  let currentUser = {};
-  let currentConfig = {};
-  let currentTableData = []; 
-  let currentRowIndex = null; 
-  let currentMenu = null;
-  let isSidebarCollapsed = false;
-  let operationMode = ''; 
-  let DATA_CACHE = {}; 
-
-  // --- COLUMN CONFIGURATION ---
+  // =========================================
+  // 1. DATA CONFIGURATION
+  // =========================================
   const COLUMN_CONFIG = {
+    // กำหนด readonly: true ให้กับ Key หลัก เพื่อป้องกันการแก้ไขภายหลัง (แต่ตอน Add จะปลดล็อคให้ Admin)
+    'Users': [
+      { key: 'username', label: 'ชื่อผู้ใช้', type: 'text', required: true, readonly: true }, 
+      { key: 'password', label: 'รหัสผ่าน', type: 'text' }, 
+      { key: 'role', label: 'สิทธิ์', type: 'select', options: ['admin', 'supervisor', 'school'], required: true },
+      { key: 'ref_id', label: 'รหัสโรงเรียน', type: 'text' }, 
+      { key: 'display_name', label: 'ชื่อที่แสดง', type: 'text' },
+      { key: 'status', label: 'สถานะ', type: 'select', options: ['Active', 'Inactive'] }
+    ],
     'SchoolInfo': [
-      { key: 'school_id', label: 'รหัสโรงเรียน', readonly: true }, { key: 'school_name', label: 'ชื่อโรงเรียน' }, { key: 'province', label: 'จังหวัด' },
-      { key: 'district', label: 'อำเภอ' }, { key: 'affiliation', label: 'สังกัด' }, { key: 'director_name', label: 'ชื่อ ผอ.' },
-      { key: 'director_phone', label: 'เบอร์ ผอ.' }, { key: 'coord_name', label: 'ผู้ประสานงาน' }, { key: 'coord_phone', label: 'เบอร์ติดต่อ' }
+      { key: 'school_id', label: 'รหัสโรงเรียน', type: 'text', readonly: true },
+      { key: 'school_name', label: 'ชื่อโรงเรียน', type: 'text' },
+      { key: 'province', label: 'จังหวัด', type: 'text' },
+      { key: 'district', label: 'อำเภอ', type: 'text' },
+      { key: 'affiliation', label: 'สังกัด', type: 'text' },
+      { key: 'campus', label: 'สหวิทยาเขต', type: 'text' },
+      { key: 'address', label: 'ที่อยู่', type: 'textarea' },
+      { key: 'director_name', label: 'ชื่อ ผอ.', type: 'text' },
+      { key: 'director_phone', label: 'เบอร์โทร ผอ.', type: 'text' },
+      { key: 'coord_name', label: 'ชื่อผู้ประสานงาน', type: 'text' },
+      { key: 'coord_phone', label: 'เบอร์โทรผู้ประสานงาน', type: 'text' },
+      { key: 'is_exam_center', label: 'เป็นสนามสอบ', type: 'select', options: ['TRUE', 'FALSE'] }
     ],
     'FieldDetails': [
-      { key: 'school_id', label: 'รหัส', readonly: true }, { key: 'school_name', label: 'โรงเรียน', readonly: true },
-      { key: 'total_eligible', label: 'ผู้มีสิทธิ์สอบ' }, { key: 'total_rooms', label: 'จำนวนห้องสอบ' },
-      { key: 'round1_seats', label: 'ที่นั่งรอบ 1' }, { key: 'round1_rooms', label: 'ห้องรอบ 1' },
-      { key: 'round2_seats', label: 'ที่นั่งรอบ 2' }, { key: 'round2_rooms', label: 'ห้องรอบ 2' },
-      { key: 'round3_seats', label: 'ที่นั่งรอบ 3' }, { key: 'round3_rooms', label: 'ห้องรอบ 3' },
-      { key: 'round4_seats', label: 'ที่นั่งรอบ 4' }, { key: 'round4_rooms', label: 'ห้องรอบ 4' }
+      { key: 'school_id', label: 'รหัสสนามสอบ', type: 'text', readonly: true },
+      { key: 'school_name', label: 'ชื่อสนามสอบ', type: 'text' },
+      { key: 'province', label: 'จังหวัด', type: 'text' },
+      { key: 'district', label: 'อำเภอ', type: 'text' },
+      { key: 'total_eligible', label: 'ผู้มีสิทธิ์สอบทั้งหมด', type: 'number' },
+      { key: 'total_rooms', label: 'จำนวนห้องสอบทั้งหมด', type: 'number' },
+      { key: 'total_round', label: 'จำนวนรอบสอบ', type: 'number' },
+      { key: 'detail_round', label: 'รายละเอียดรอบ', type: 'textarea' }
     ],
     'RoomDetails': [
-      { key: 'school_id', label: 'รหัส', readonly: true }, { key: 'school_name', label: 'โรงเรียน', readonly: true },
-      { key: 'room_seq', label: 'ลำดับห้อง' }, { key: 'room_name', label: 'ชื่อห้อง' }, { key: 'max_seats', label: 'จำนวนที่นั่งสูงสุด' },
-      { key: 'round1_seats', label: 'ที่นั่งรอบ 1' }, { key: 'round2_seats', label: 'ที่นั่งรอบ 2' },
-      { key: 'round3_seats', label: 'ที่นั่งรอบ 3' }, { key: 'round4_seats', label: 'ที่นั่งรอบ 4' }
+      { key: 'school_id', label: 'รหัสสนามสอบ', type: 'text', readonly: true },
+      { key: 'school_name', label: 'ชื่อสนามสอบ', type: 'text', hiddenInTable: true },
+      { key: 'room_seq', label: 'ลำดับห้อง', type: 'number' },
+      { key: 'building', label: 'อาคาร', type: 'text' },
+      { key: 'floor', label: 'ชั้น', type: 'text' },
+      { key: 'room_name', label: 'ชื่อห้อง', type: 'text' },
+      { key: 'room_type', label: 'ประเภทห้อง', type: 'text' },
+      { key: 'max_seats', label: 'ที่นั่งสูงสุด', type: 'number' }
     ],
-    'BudgetDetails': [
-      { key: 'school_id', label: 'รหัส', readonly: true }, { key: 'school_name', label: 'โรงเรียน', readonly: true },
-      { key: 'head_exam_pay', label: 'ค่าตอบแทนหัวหน้า' }, { key: 'coord_pay', label: 'ค่าตอบแทนประสานงาน' },
-      { key: 'meeting_head', label: 'ค่าประชุมหัวหน้า' }, { key: 'meeting_coord', label: 'ค่าประชุมประสานงาน' },
-      { key: 'total_budget', label: 'รวมงบประมาณ' }, { key: 'bank_account_name', label: 'ชื่อบัญชี' }, { key: 'bank_account_number', label: 'เลขบัญชี' }
-    ],
-    'Users': [
-      { key: 'ref_id', label: 'รหัส (Ref ID)', readonly: true }, { key: 'display_name', label: 'ชื่อ/โรงเรียน' },
-      { key: 'username', label: 'Username' }, { key: 'password', label: 'Password' },
-      { key: 'role', label: 'สิทธิ์ (Dropdown)' }, { key: 'status', label: 'สถานะ (Active/Inactive)' }
+    'Budget': [
+      { key: 'school_id', label: 'รหัสโรงเรียน', type: 'text', readonly: true },
+      { key: 'school_name', label: 'ชื่อโรงเรียน', type: 'text' },
+      { key: 'meeting_total', label: 'ค่าตอบแทนประชุม', type: 'number', readonly: true, format: 'money' },
+      { key: 'work_pay_total', label: 'ค่าตอบแทนปฏิบัติงาน', type: 'number', readonly: true, format: 'money' },
+      { key: 'facility_cost', label: 'ค่าตอบแทนเครื่องคอมฯ', type: 'number', format: 'money' },
+      { key: 'document_cost', label: 'ค่าตอบแทนพิมพ์เอกสาร', type: 'number', format: 'money' },
+      { key: 'total_budget', label: 'รวมเงินงบประมาณ', type: 'number', readonly: true, format: 'money' },
+      { key: 'transfer_status', label: 'สถานะการโอน', type: 'select', options: ['รอโอน', 'โอนแล้ว', 'กำลังดำเนินการ'] },
+      { key: 'meeting_head', label: 'ประชุมหัวหน้า', type: 'number', hiddenInTable: true },
+      { key: 'meeting_coord', label: 'ประชุมประสานงาน', type: 'number', hiddenInTable: true },
+      { key: 'meeting_system_admin', label: 'ประชุมระบบ', type: 'number', hiddenInTable: true },
+      { key: 'meeting_system_room', label: 'ประชุมห้องสอบ', type: 'number', hiddenInTable: true },
+      { key: 'meeting_proctor', label: 'ประชุมคุมสอบ', type: 'number', hiddenInTable: true },
+      { key: 'meeting_janitor', label: 'ประชุมนักการ', type: 'number', hiddenInTable: true },
+      { key: 'head_exam_pay', label: 'ค่าตอบแทนหัวหน้า', type: 'number', hiddenInTable: true },
+      { key: 'coord_pay', label: 'ค่าตอบแทนประสานงาน', type: 'number', hiddenInTable: true },
+      { key: 'system_admin_pay', label: 'ค่าตอบแทนระบบ', type: 'number', hiddenInTable: true },
+      { key: 'system_room_pay', label: 'ค่าตอบแทนห้องสอบ', type: 'number', hiddenInTable: true },
+      { key: 'proctor_pay', label: 'ค่าตอบแทนคุมสอบ', type: 'number', hiddenInTable: true },
+      { key: 'janitor_pay', label: 'ค่าตอบแทนนักการ', type: 'number', hiddenInTable: true }
     ],
     'Documents': [
-      { key: 'doc_id', label: 'รหัสเอกสาร' }, { key: 'doc_name', label: 'ชื่อเอกสาร' },
-      { key: 'category', label: 'หมวดหมู่' }, { key: 'link_url', label: 'ลิงก์ไฟล์ URL' }, { key: 'target_role', label: 'สิทธิ์การเห็น' }
+      { key: 'doc_id', label: 'รหัสเอกสาร', type: 'text', required: true }, // Key หลัก
+      { key: 'doc_name', label: 'ชื่อเอกสาร', type: 'text' },
+      { key: 'category', label: 'หมวดหมู่', type: 'text' },
+      { key: 'link_url', label: 'ลิงค์ดาวน์โหลด', type: 'link' }, 
+      { key: 'target_role', label: 'สิทธิ์การมองเห็น', type: 'select', options: ['all', 'school', 'admin'] }
     ],
-    'Setting': [
-      { key: 'setting_key', label: 'ชื่อการตั้งค่า', readonly: true }, { key: 'setting_value', label: 'ค่า' }, { key: 'description', label: 'คำอธิบาย' }
+    'Settings': [
+      { key: 'setting_key', label: 'Key', type: 'text', readonly: true }, // Key หลัก
+      { key: 'setting_value', label: 'Value', type: 'text' },
+      { key: 'description', label: 'คำอธิบาย', type: 'text' },
+      { key: 'is_active', label: 'เปิดใช้งาน', type: 'select', options: ['TRUE', 'FALSE'] }
     ]
   };
 
   const MENUS = [
-    { id: 'home', label: 'ข้อมูลทั่วไป', icon: 'fa-school', table: 'SchoolInfo', viewType: 'table' },
-    { id: 'field', label: 'รายละเอียดสนามสอบ', icon: 'fa-building', table: 'FieldDetails', viewType: 'table' },
-    { id: 'room', label: 'รายละเอียดห้องสอบ', icon: 'fa-desktop', table: 'RoomDetails', viewType: 'table' },
-    { id: 'budget', label: 'รายละเอียดค่าใช้จ่าย', icon: 'fa-money-bill-wave', table: 'BudgetDetails', viewType: 'table' },
-    { id: 'docs', label: 'เอกสาร/คู่มือ', icon: 'fa-file-pdf', table: 'Documents', viewType: 'table' },
-  ];
-  
-  const ADMIN_MENUS = [
-     { id: 'users', label: 'จัดการผู้ใช้', icon: 'fa-users-cog', table: 'Users', viewType: 'table' },
-     { id: 'setting', label: 'ตั้งค่าระบบ', icon: 'fa-cogs', table: 'Setting', viewType: 'card' }
+    { id: 'home', label: 'ข้อมูลทั่วไป', icon: 'bi-building', table: 'SchoolInfo' },
+    { id: 'field', label: 'รายละเอียดสนามสอบ', icon: 'bi-geo-alt', table: 'FieldDetails' },
+    { id: 'room', label: 'รายละเอียดห้องสอบ', icon: 'bi-door-open', table: 'RoomDetails' },
+    { id: 'budget', label: 'รายละเอียดค่าใช้จ่าย', icon: 'bi-cash-coin', table: 'Budget' },
+    { id: 'docs', label: 'เอกสาร/คู่มือ', icon: 'bi-file-earmark-text', table: 'Documents' }
   ];
 
-  function handleLogin(e) {
-    e.preventDefault(); toggleLoader(true);
-    google.script.run.withSuccessHandler(res => {
-      toggleLoader(false);
-      if (res.status === true) { currentUser = res.user; currentConfig = res.config; initDashboard(); } 
-      else { Swal.fire({ icon: 'error', title: 'Login Failed', text: res.msg }); }
-    }).apiLogin(document.getElementById('username').value, document.getElementById('password').value);
-  }
+  let currentUser = null;
+  let currentSheet = '';
+  let currentData = [];
 
-  function logout() {
-    Swal.fire({ title: 'ยืนยันออกจากระบบ?', icon: 'question', showCancelButton: true }).then((r) => {
-      if (r.isConfirmed) {
-        document.getElementById('page-dashboard').classList.add('hidden');
-        document.getElementById('page-login').classList.remove('hidden');
-        document.getElementById('password').value = '';
-        DATA_CACHE = {}; 
-      }
-    });
-  }
+  $(document).ready(function() { $('#loading').hide(); });
 
-  function initDashboard() {
-    document.getElementById('page-login').classList.add('hidden');
-    document.getElementById('page-dashboard').classList.remove('hidden');
-    document.getElementById('user-name').innerText = currentUser.display_name;
-    document.getElementById('user-role').innerText = currentUser.role.toUpperCase();
-    if (currentConfig.logo) document.querySelectorAll('#nav-logo').forEach(el => { el.src = currentConfig.logo; el.classList.remove('hidden'); });
-    renderMenu();
-    
-    // Client-side URL param check
-    const urlParams = new URLSearchParams(window.location.search);
-    const page = urlParams.get('page') || 'home';
-    let targetMenu = [...MENUS, ...ADMIN_MENUS].find(m => m.id === page);
-    if (currentUser.role !== 'admin' && ADMIN_MENUS.some(m => m.id === page)) targetMenu = MENUS[0];
-    loadContent(targetMenu || MENUS[0]);
-  }
+  // --- UTILS ---
+  function parseNum(val) { return parseFloat(String(val).replace(/,/g, '')) || 0; }
+  function formatMoney(amount) { return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(parseNum(amount)); }
+  function formatNum(val) { return new Intl.NumberFormat('th-TH').format(parseNum(val)); }
+  function showError(msg) { $('#loading').hide(); Swal.fire('เกิดข้อผิดพลาด', msg, 'error'); }
 
-  function renderMenu() {
-    const list = document.getElementById('menu-list'); list.innerHTML = '';
-    let items = [...MENUS]; if (currentUser.role === 'admin') items = [...items, ...ADMIN_MENUS];
-    const baseUrl = window.location.href.split('?')[0]; 
-    items.forEach(item => {
-      const li = document.createElement('li');
-      li.innerHTML = `<a href="${baseUrl}?page=${item.id}" class="sidebar-link flex items-center px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition duration-200"><div class="w-8 text-center flex-shrink-0"><i class="fas ${item.icon} text-lg"></i></div><span class="ml-3 font-medium sidebar-text overflow-hidden whitespace-nowrap">${item.label}</span></a>`;
-      li.querySelector('a').addEventListener('click', (e) => { if (e.button === 0 && !e.ctrlKey && !e.metaKey) { e.preventDefault(); loadContent(item); } });
-      list.appendChild(li);
-    });
-  }
-
+  // --- UI ACTIONS (Hamburger) ---
   function toggleSidebar() {
-    isSidebarCollapsed = !isSidebarCollapsed;
-    const sidebar = document.getElementById('sidebar');
-    if (isSidebarCollapsed) { sidebar.classList.remove('w-64'); sidebar.classList.add('w-20', 'hide-text'); } 
-    else { sidebar.classList.remove('w-20', 'hide-text'); sidebar.classList.add('w-64'); }
-    setTimeout(() => { if($.fn.DataTable.isDataTable('#dataTableID')) $('#dataTableID').DataTable().columns.adjust().responsive.recalc(); }, 300);
+    document.body.classList.toggle('sidebar-collapsed');
   }
 
-  // ==========================================
-  // 3. CONTENT LOADING
-  // ==========================================
-  function loadContent(menuItem, forceRefresh = false) {
-    toggleLoader(true);
-    currentMenu = menuItem;
-    document.getElementById('page-title').innerText = menuItem.label;
+  // --- AUTH ---
+  function doLogin() {
+    const u = $('#loginUser').val();
+    const p = $('#loginPass').val();
+    if(!u || !p) { Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูล', 'warning'); return; }
+    $('#loading').show();
     
-    document.querySelectorAll('.sidebar-link').forEach(el => el.classList.remove('bg-blue-100', 'text-blue-700', 'font-bold'));
-    const activeLink = Array.from(document.querySelectorAll('.sidebar-link')).find(el => el.href.includes(`page=${menuItem.id}`));
-    if(activeLink) activeLink.classList.add('bg-blue-100', 'text-blue-700', 'font-bold');
+    google.script.run
+      .withSuccessHandler(res => {
+        $('#loading').hide();
+        const r = JSON.parse(res);
+        if(r.status === 'success') {
+          currentUser = r.user;
+          currentUser.role = String(currentUser.role).toLowerCase();
+          
+          $('#loginScreen').fadeOut();
+          $('#mainApp').removeClass('hidden');
+          $('#displayUser').text(currentUser.name);
+          $('#displayRole').text(currentUser.role.toUpperCase());
+          renderSidebar();
+          // Redirect
+          if(currentUser.role === 'school') loadTable('SchoolInfo', 'ข้อมูลทั่วไป');
+          else loadDashboard();
+        } else { Swal.fire('ผิดพลาด', r.message, 'error'); }
+      })
+      .withFailureHandler(showError)
+      .apiHandleRequest({ action: 'login', data: { username: u, password: p } });
+  }
 
-    document.getElementById('content-area').classList.add('hidden');
-    document.getElementById('card-area').classList.add('hidden');
+  function doLogout() {
+    Swal.fire({ title: 'ออกจากระบบ?', icon: 'question', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก' }).then(r => {
+      if(r.isConfirmed) {
+        currentUser = null;
+        $('#mainApp').addClass('hidden');
+        $('#loginScreen').fadeIn();
+        $('#loginPass').val('');
+      }
+    });
+  }
+
+  // --- MENU ---
+  function renderSidebar() {
+    let html = '';
+    // Admin & Supervisor Menu
+    if(currentUser.role === 'admin' || currentUser.role === 'supervisor') {
+      html += `<li class="nav-item"><a id="menu-Dashboard" class="nav-link" onclick="loadDashboard()"><i class="bi bi-speedometer2"></i> <span class="menu-text">ภาพรวม (Dashboard)</span></a></li>`;
+      html += `<li class="nav-item"><a id="menu-Users" class="nav-link" onclick="loadTable('Users', 'ผู้ใช้งาน')"><i class="bi bi-people"></i> <span class="menu-text">ผู้ใช้งาน (Users)</span></a></li>`;
+      html += `<li class="nav-item"><a id="menu-Settings" class="nav-link" onclick="loadTable('Settings', 'ตั้งค่าระบบ')"><i class="bi bi-gear"></i> <span class="menu-text">ตั้งค่า (Settings)</span></a></li>`;
+      html += `<hr class="mx-3 my-2 text-secondary opacity-25">`;
+    }
     
-    const btnAdd = document.getElementById('btn-add-data');
-    if (currentUser.role === 'admin' && ['Documents', 'Users', 'Setting'].includes(menuItem.table)) {
-       btnAdd.classList.remove('hidden'); btnAdd.classList.add('flex');
-    } else {
-       btnAdd.classList.add('hidden'); btnAdd.classList.remove('flex');
-    }
+    MENUS.forEach(m => {
+      html += `<li class="nav-item"><a id="menu-${m.table}" class="nav-link" onclick="loadTable('${m.table}', '${m.label}')"><i class="bi ${m.icon}"></i> <span class="menu-text">${m.label}</span></a></li>`;
+    });
+    $('#sidebarMenu').html(html);
+  }
 
-    // SPECIAL: Budget Page
-    if (currentUser.role === 'school' && menuItem.id === 'budget') {
-        google.script.run
-            .withSuccessHandler(bundle => {
-                toggleLoader(false);
-                document.getElementById('content-area').classList.remove('hidden');
-                renderBudgetDetailsOfficial(bundle.budget || {}, bundle.field || {}); 
-            })
-            .withFailureHandler(err => { toggleLoader(false); Swal.fire('Error', 'โหลดข้อมูลไม่สำเร็จ', 'error'); })
-            .apiGetSchoolBudgetBundle(currentUser.ref_id);
-        return;
-    }
+  function setActiveMenu(id) {
+    $('.nav-link').removeClass('active');
+    $('#menu-' + id).addClass('active');
+  }
 
-    if (!forceRefresh && DATA_CACHE[menuItem.table]) { processAndRender(DATA_CACHE[menuItem.table], menuItem); return; }
+  function showContent(html) {
+    const $area = $('#content-area');
+    $area.hide().html(html).removeClass('fade-in'); 
+    setTimeout(() => { $area.show().addClass('fade-in'); }, 50);
+  }
 
-    google.script.run.withSuccessHandler(rawData => {
-      toggleLoader(false);
-      let filteredData = (rawData || []).filter(row => {
-          if(!row) return false;
-          const k = Object.keys(row).find(x => x !== '_rowIndex');
-          return row[k] && String(row[k]).trim() !== '';
+  // --- DASHBOARD (Admin Only) ---
+  function loadDashboard() {
+    currentSheet = 'Dashboard';
+    setActiveMenu('Dashboard');
+    $('#loading').show();
+    $('#page-title').text('ภาพรวมการบันทึกข้อมูล');
+    $('#action-buttons').html(`<button class="btn btn-sm btn-outline-success" onclick="loadDashboard()"><i class="bi bi-arrow-clockwise"></i> รีเฟรช</button>`);
+
+    google.script.run.withSuccessHandler(res => {
+      $('#loading').hide();
+      const r = JSON.parse(res);
+      const schools = r.data.schools;
+      const checks = r.data.checks;
+      let html = `<div class="card card-shadow"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light"><tr><th>โรงเรียน</th><th class="text-center">ข้อมูลพื้นฐาน</th><th class="text-center">สนามสอบ</th><th class="text-center">ห้องสอบ</th><th class="text-center">งบประมาณ</th><th class="text-center">ความคืบหน้า</th></tr></thead><tbody>`;
+      schools.forEach(s => {
+        const pct = ([checks.info.includes(String(s.ref_id)), checks.field.includes(String(s.ref_id)), checks.room.includes(String(s.ref_id)), checks.budget.includes(String(s.ref_id))].filter(Boolean).length / 4) * 100;
+        html += `<tr><td>${s.name}</td><td class="text-center">${statusDot(checks.info.includes(String(s.ref_id)))}</td><td class="text-center">${statusDot(checks.field.includes(String(s.ref_id)))}</td><td class="text-center">${statusDot(checks.room.includes(String(s.ref_id)))}</td><td class="text-center">${statusDot(checks.budget.includes(String(s.ref_id)))}</td><td class="text-center"><div class="progress" style="height:6px; width:80px; margin:0 auto;"><div class="progress-bar bg-success" style="width:${pct}%"></div></div></td></tr>`;
       });
-      DATA_CACHE[menuItem.table] = filteredData;
-      processAndRender(filteredData, menuItem);
-    }).apiGetData(menuItem.table, currentUser.role, currentUser.ref_id);
+      html += `</tbody></table></div></div>`;
+      showContent(html);
+    }).withFailureHandler(showError).apiHandleRequest({ action: 'getDashboard' });
   }
 
-  function processAndRender(data, menuItem) {
-      currentTableData = data; 
-      toggleLoader(false);
+  function statusDot(ok) { return ok ? '<div class="status-dot dot-success" title="มีข้อมูล"></div>' : '<div class="status-dot dot-empty" title="ยังไม่มี"></div>'; }
 
-      if (currentUser.role === 'school' && menuItem.id === 'home') {
-          document.getElementById('content-area').classList.remove('hidden');
-          renderSchoolProfile(data[0] || {}); 
-      } 
-      else if (currentUser.role === 'school' && menuItem.id === 'field') {
-          document.getElementById('content-area').classList.remove('hidden');
-          renderFieldDetails(data[0] || {});
-      }
-      else if (currentUser.role === 'school' && menuItem.id === 'room') {
-          document.getElementById('content-area').classList.remove('hidden');
-          renderRoomDetails(data || []); 
-      }
-      // *** DOCUMENTS VIEW ***
-      else if (menuItem.id === 'docs') {
-          document.getElementById('content-area').classList.remove('hidden');
-          renderDocumentList(data || []); 
-      }
-      else if (menuItem.viewType === 'table') {
-        document.getElementById('content-area').classList.remove('hidden');
-        renderTable(menuItem, data || []);
-      } else {
-        document.getElementById('card-area').classList.remove('hidden');
-        renderCards(menuItem, data || []);
-      }
-  }
-
-  function formatMoney(amount) {
-      if (!amount || amount === '-') return '0.00';
-      let num = parseFloat(String(amount).replace(/,/g, ''));
-      return isNaN(num) ? '0.00' : num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  function formatNum(num) { return num ? num : '0'; }
-
-  // ==========================================
-  // RENDER FUNCTIONS
-  // ==========================================
-
-  // --- 🟢 1. DOCUMENTS LIST (V1 Style: Compact Rows) ---
-  function renderDocumentList(data) {
-    const div = document.getElementById('content-area');
+  // --- CRUD ENGINE (MAIN LOGIC) ---
+  function loadTable(sheet, title) {
+    currentSheet = sheet;
+    setActiveMenu(sheet);
+    $('#loading').show();
+    $('#page-title').text(title);
     
-    // กรณีไม่พบข้อมูล
-    if (!data || data.length === 0) { 
-        div.innerHTML = `<div class="text-center py-12 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl"><div class="text-gray-400 mb-2"><i class="fas fa-file-invoice text-4xl"></i></div><p class="text-gray-500">ไม่พบเอกสารสำหรับคุณ</p></div>`; 
+    let isSchool = (currentUser.role === 'school');
+    // School is readonly on these sheets
+    let isReadOnly = isSchool && ['FieldDetails', 'RoomDetails', 'Budget', 'Documents'].includes(sheet);
+    let isAdmin = !isSchool;
+
+    let buttonsHtml = '';
+    // 1. ปุ่ม Refresh (Admin Only)
+    if(isAdmin) buttonsHtml += `<button class="btn btn-outline-secondary shadow-sm me-2" onclick="loadTable('${sheet}', '${title}')"><i class="bi bi-arrow-clockwise"></i> รีเฟรช</button>`;
+    
+    // 2. ปุ่ม Add Data (Admin เห็นทุกหน้า / School เห็นเฉพาะที่ไม่ใช่ ReadOnly และไม่ใช่ SchoolInfo)
+    if(isAdmin || (!isReadOnly && sheet !== 'SchoolInfo')) {
+        buttonsHtml += `<button class="btn btn-success shadow-sm" onclick="openModal()"><i class="bi bi-plus-lg"></i> เพิ่มข้อมูล</button>`;
+    }
+    $('#action-buttons').html(buttonsHtml);
+
+    // ... (SPECIAL LOGIC FOR SCHOOL VIEW) ...
+    if (isSchool && sheet === 'Budget') {
+       google.script.run.withSuccessHandler(resB => {
+           let budgetList = JSON.parse(resB).data || [];
+           let budgetData = budgetList.find(r => String(r.school_id) === String(currentUser.ref_id)) || {};
+           google.script.run.withSuccessHandler(resF => {
+               $('#loading').hide();
+               let fieldList = JSON.parse(resF).data || [];
+               let fieldData = fieldList.find(r => String(r.school_id) === String(currentUser.ref_id)) || {};
+               renderBudgetDetailsOfficial(budgetData, fieldData);
+           }).apiHandleRequest({ action: 'read', sheetName: 'FieldDetails' });
+       }).apiHandleRequest({ action: 'read', sheetName: 'Budget' });
+       return;
+    }
+
+    // ... (STANDARD LOGIC) ...
+    google.script.run.withSuccessHandler(res => {
+      $('#loading').hide();
+      const r = JSON.parse(res);
+      let data = r.data;
+      
+      if(isSchool) {
+        if(sheet === 'Users') data = data.filter(r => String(r.username) === String(currentUser.username));
+        else if(sheet === 'Documents') data = data.filter(r => r.target_role === 'all' || r.target_role === 'school');
+        else data = data.filter(r => String(r.school_id) === String(currentUser.ref_id));
+      }
+
+      currentData = data;
+
+      // Special Renders
+      if (isSchool && sheet === 'SchoolInfo') { renderSchoolProfile(data[0] || {}); return; }
+      if (isSchool && sheet === 'FieldDetails') { renderFieldDetails(data[0] || {}); return; }
+      if (isSchool && sheet === 'RoomDetails') { renderRoomDetails(data || []); return; }
+      if (isSchool && sheet === 'Documents') { renderDocumentList(data || []); return; }
+
+      // Table View
+      if(data.length === 0) {
+         let emptyHtml = `<div class="text-center py-5 text-muted bg-white card-shadow rounded"><i class="bi bi-inbox fs-1"></i><p>ยังไม่มีข้อมูล</p></div>`;
+         // กรณีพิเศษ SchoolInfo ไม่มีข้อมูล ยอมให้เพิ่มได้ (ถ้าจำเป็น)
+         if(isSchool && sheet === 'SchoolInfo') emptyHtml += `<div class="text-center mt-3"><button class="btn btn-primary" onclick="openModal()">ลงทะเบียนข้อมูลพื้นฐาน</button></div>`;
+         $('#content-area').html(emptyHtml);
+         return;
+      }
+
+      const config = COLUMN_CONFIG[sheet] || [];
+      const cols = config.filter(c => !c.hiddenInTable);
+
+      let html = `<div class="card card-shadow"><div class="table-responsive"><table class="table table-hover align-middle mb-0">`;
+      html += `<thead class="table-light"><tr>`;
+      cols.forEach(c => html += `<th>${c.label}</th>`);
+      // Show Action column if Admin OR (School & Not Readonly)
+      if(isAdmin || !isReadOnly) html += `<th class="text-end">จัดการ</th>`;
+      html += `</tr></thead><tbody>`;
+
+      data.forEach(row => {
+         let keyVal = row.id; 
+         if(sheet === 'Users') keyVal = row.username;
+         if(['SchoolInfo','FieldDetails','RoomDetails','Budget'].includes(sheet)) keyVal = row.school_id;
+         if(sheet === 'Documents') keyVal = row.doc_id;
+         if(sheet === 'Settings') keyVal = row.setting_key;
+         
+         html += `<tr>`;
+         cols.forEach(c => {
+            let val = row[c.key] || '';
+            if(c.type === 'link' && val) val = `<a href="${val}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>`;
+            if(c.format === 'money') val = formatMoney(parseNum(val));
+            html += `<td>${val}</td>`;
+         });
+
+         if(isAdmin || !isReadOnly) {
+            html += `<td class="text-end">`;
+            // Edit Button (แสดงเสมอถ้าไม่ใช่ readonly)
+            html += `<button class="btn btn-sm btn-outline-primary me-1" onclick="openModal('${keyVal}')"><i class="bi bi-pencil"></i></button>`;
+            // Delete Button (Admin Only)
+            if(isAdmin) html += `<button class="btn btn-sm btn-outline-danger" onclick="deleteData('${keyVal}')"><i class="bi bi-trash"></i></button>`;
+            html += `</td>`;
+         }
+         html += `</tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+      showContent(html);
+
+    }).withFailureHandler(showError).apiHandleRequest({ action: 'read', sheetName: sheet });
+  }
+
+  // --- [RENDER FUNCTIONS: SchoolProfile, FieldDetails, RoomDetails, Budget, Docs] (ใช้โค้ดเดิมได้เลย) ---
+  // (วิจะใส่เฉพาะตัวอย่างฟังก์ชัน renderSchoolProfile เพื่อความกระชับ แต่ในไฟล์จริงต้องมีครบนะ)
+  function renderSchoolProfile(data) {
+    // ... (เหมือนเดิม) ...
+    const div = document.getElementById('content-area');
+    if (!data || Object.keys(data).length === 0) { 
+        div.innerHTML = `<div class="text-center py-16 bg-white rounded-xl shadow-sm border border-gray-200"><div class="text-gray-300 mb-4"><i class="fas fa-school text-6xl"></i></div><h3 class="text-xl font-bold text-gray-700 mb-2">ยังไม่มีข้อมูลโรงเรียน</h3><button onclick="openModal()" class="btn btn-primary mt-3">ลงทะเบียนข้อมูลพื้นฐาน</button></div>`; 
         return; 
     }
-
-    let html = `
-      <div class="max-w-5xl mx-auto mt-4 font-sarabun pb-10">
-        <div class="flex justify-between items-center mb-6">
-           <h3 class="text-xl font-bold text-gray-800"><i class="fas fa-folder-open text-pink-500 mr-2"></i> คลังเอกสารและคู่มือ</h3>
-        </div>
-        <div class="space-y-3">`;
-
-    data.forEach(doc => {
-        let deleteBtn = '';
-        if(currentUser.role === 'admin') {
-            deleteBtn = `<button onclick="deleteItem(${doc._rowIndex})" class="text-gray-400 hover:text-red-500 ml-4 transition p-2" title="ลบเอกสาร"><i class="fas fa-trash-alt"></i></button>`;
-        }
-
-        html += `
-            <div class="flex justify-between items-center p-4 bg-white border border-gray-200 rounded-lg hover:shadow-md transition duration-200">
-                <div class="flex gap-4 items-center overflow-hidden">
-                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-pink-50 flex items-center justify-center text-pink-500">
-                      <i class="fas fa-file-alt text-xl"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <div class="font-bold text-gray-800 text-base truncate pr-2">${doc.doc_name}</div>
-                        <div class="flex gap-2 mt-0.5">
-                            <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200">${doc.category}</span>
-                            <span class="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100">For: ${doc.target_role}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="flex items-center flex-shrink-0 ml-2">
-                    <a href="${doc.link_url}" target="_blank" class="flex items-center gap-2 bg-white text-blue-600 border border-blue-600 px-3 py-1.5 rounded text-sm hover:bg-blue-600 hover:text-white transition font-medium shadow-sm">
-                        <i class="fas fa-download"></i> <span class="hidden sm:inline">Download</span>
-                    </a>
-                    ${deleteBtn}
-                </div>
-            </div>`;
-    });
-
-    html += `</div></div>`;
+    const schoolName = data.school_name || '-';
+    const isExamCenter = (String(data.is_exam_center).toLowerCase() === 'true') ? '<span class="badge bg-success"><i class="bi bi-check-circle"></i> เป็นสนามสอบ</span>' : '<span class="badge bg-secondary">ไม่เป็นสนามสอบ</span>';
+    let html = `<div class="card card-shadow border-0 animate-fade-in-up"><div class="card-header bg-primary text-white p-4 d-flex justify-content-between align-items-center"><h4 class="mb-0"><i class="bi bi-mortarboard-fill me-2"></i> ${schoolName}</h4><button onclick="openModal('${data.school_id}')" class="btn btn-light btn-sm fw-bold"><i class="bi bi-pencil-square"></i> แก้ไขข้อมูล</button></div><div class="card-body p-4"><div class="row g-4"><div class="col-md-8"><h5 class="text-muted border-bottom pb-2 mb-3"><i class="bi bi-geo-alt-fill text-danger"></i> ข้อมูลที่ตั้ง</h5><div class="row g-3"><div class="col-md-6"><small class="text-muted">สังกัด</small><div class="fw-bold">${data.affiliation || '-'}</div></div><div class="col-md-6"><small class="text-muted">สถานะ</small><div>${isExamCenter}</div></div><div class="col-md-6"><small class="text-muted">จังหวัด</small><div class="fw-bold">${data.province || '-'}</div></div><div class="col-md-6"><small class="text-muted">อำเภอ</small><div class="fw-bold">${data.district || '-'}</div></div><div class="col-12"><small class="text-muted">ที่อยู่ไปรษณีย์</small><div class="bg-light p-3 rounded border">${data.address || '-'}</div></div></div></div><div class="col-md-4"><div class="card border-0 bg-light h-100"><div class="card-body"><h6 class="fw-bold text-primary mb-3">บุคลากรหลัก</h6><div class="mb-3"><small class="text-muted d-block">ผู้อำนวยการ</small><div class="fw-bold text-dark">${data.director_name || '-'}</div><div class="text-success"><i class="bi bi-telephone"></i> ${data.director_phone || '-'}</div></div><hr><div><small class="text-muted d-block">ผู้ประสานงาน</small><div class="fw-bold text-dark">${data.coord_name || '-'}</div><div class="text-success"><i class="bi bi-telephone"></i> ${data.coord_phone || '-'}</div></div></div></div></div></div></div></div>`;
     div.innerHTML = html;
   }
-
-  // --- 2. SCHOOL PROFILE ---
-  function renderSchoolProfile(data) {
-    const div = document.getElementById('content-area');
-    if (!data || Object.keys(data).length === 0) { div.innerHTML = `<div class="text-center py-10 text-gray-400">ไม่พบข้อมูล</div>`; return; }
-    const profileFields = [{ key: 'school_id', label: 'รหัสผู้ใช้' }, { key: 'school_name', label: 'ชื่อผู้ใช้' }, { key: 'director_name', label: 'หัวหน้าสนามสอบ' }, { key: 'director_phone', label: 'เบอร์โทรติดต่อหัวหน้าสนามสอบ' }, { key: 'coord_name', label: 'ผู้ประสานงาน' }, { key: 'coord_phone', label: 'เบอร์โทรติดต่อผู้ประสานงาน' }];
-    let html = `<div class="max-w-4xl mx-auto bg-white rounded-xl overflow-hidden shadow-lg border border-gray-200 mt-6"><div class="bg-blue-600 px-6 py-4 flex justify-between items-center"><h3 class="text-white text-lg font-bold flex items-center"><i class="fas fa-university mr-3"></i> ข้อมูลทั่วไปสถานศึกษา</h3><button onclick="editItem(${data._rowIndex})" class="text-white bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded-lg text-sm transition shadow-sm border border-blue-500"><i class="fas fa-edit mr-1"></i> แก้ไขข้อมูล</button></div><div class="p-6"><table class="w-full border-collapse"><tbody>`;
-    profileFields.forEach((field, index) => { const val = data[field.key] || '-'; const bgClass = index % 2 === 0 ? 'bg-gray-50' : 'bg-white'; html += `<tr class="border-b border-gray-100 hover:bg-blue-50 transition ${bgClass}"><td class="px-6 py-4 w-1/3 text-gray-600 font-semibold text-sm border-r border-gray-100">${field.label}</td><td class="px-6 py-4 text-gray-800 font-medium text-sm">${val}</td></tr>`; });
-    html += `</tbody></table></div></div>`;
-    div.innerHTML = html;
-  }
-
-  // --- 3. FIELD DETAILS ---
   function renderFieldDetails(data) {
     const div = document.getElementById('content-area');
     if (!data || Object.keys(data).length === 0) { div.innerHTML = `<div class="text-center py-10 text-gray-400">ไม่พบข้อมูลสนามสอบ</div>`; return; }
     const roundsDetail = `${data.total_round || 0} รอบ (${data.detail_round || '-'})`;
-    const roomsDetail = `${data.total_rooms || 0} ห้อง <span class="text-xs text-gray-500 ml-2">(รอบ1: ${data.round1_rooms || 0}, รอบ2: ${data.round2_rooms || 0}, รอบ3: ${data.round3_rooms || 0}, รอบ4: ${data.round4_rooms || 0})</span>`;
-    let html = `<div class="max-w-5xl mx-auto space-y-6 mt-4"><div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden"><div class="bg-indigo-600 px-6 py-3 border-b border-indigo-700"><h3 class="text-white font-bold text-lg"><i class="fas fa-building mr-2"></i> ข้อมูลสนามสอบ</h3></div><div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6"><div class="bg-indigo-50 p-4 rounded-lg"><p class="text-sm text-gray-500 mb-1">จำนวนรอบการสอบ</p><p class="text-xl font-bold text-indigo-900">${roundsDetail}</p></div><div class="bg-blue-50 p-4 rounded-lg"><p class="text-sm text-gray-500 mb-1">จำนวนห้องสอบ</p><p class="text-xl font-bold text-blue-900">${roomsDetail}</p></div><div class="bg-green-50 p-4 rounded-lg"><p class="text-sm text-gray-500 mb-1">จำนวนผู้มีสิทธิ์สอบ</p><p class="text-xl font-bold text-green-900">${data.total_eligible || 0} คน</p></div><div class="bg-orange-50 p-4 rounded-lg"><p class="text-sm text-gray-500 mb-1">โรงเรียนที่เข้ารับการทดสอบ</p><p class="text-md font-bold text-orange-900">${data.school_test || '-'}</p></div></div></div><div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden"><div class="bg-teal-600 px-6 py-3 border-b border-teal-700"><h3 class="text-white font-bold text-lg"><i class="fas fa-users mr-2"></i> โครงสร้างคณะกรรมการ</h3></div><div class="p-0"><table class="w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 uppercase bg-gray-100"><tr><th class="px-6 py-3">ตำแหน่ง</th><th class="px-6 py-3 text-right">จำนวน (คน)</th></tr></thead><tbody class="divide-y divide-gray-100"><tr class="hover:bg-gray-50"><td class="px-6 py-3 font-medium">หัวหน้าสนามสอบ</td><td class="px-6 py-3 text-right">${data.head || 0}</td></tr><tr class="hover:bg-gray-50"><td class="px-6 py-3 font-medium">ผู้ประสานงานสนามสอบ</td><td class="px-6 py-3 text-right">${data.coord || 0}</td></tr><tr class="hover:bg-gray-50"><td class="px-6 py-3 font-medium">เจ้าหน้าที่ระบบสนามสอบ</td><td class="px-6 py-3 text-right">${data.system_admin || 0}</td></tr><tr class="hover:bg-gray-50"><td class="px-6 py-3 font-medium">เจ้าหน้าที่ระบบห้องสอบ</td><td class="px-6 py-3 text-right">${data.system_roomy || 0}</td></tr><tr class="hover:bg-gray-50"><td class="px-6 py-3 font-medium">กรรมการคุมสอบ</td><td class="px-6 py-3 text-right">${data.proctor || 0}</td></tr><tr class="hover:bg-gray-50"><td class="px-6 py-3 font-medium">นักการภารโรง</td><td class="px-6 py-3 text-right">${data.janitor || 0}</td></tr><tr class="bg-teal-50 font-bold text-teal-800"><td class="px-6 py-3">รวมคณะกรรมการทั้งหมด</td><td class="px-6 py-3 text-right">${data.total_comme || 0}</td></tr></tbody></table></div></div><div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden"><div class="px-6 py-4 flex items-start"><div class="p-3 bg-yellow-100 text-yellow-600 rounded-full mr-4"><i class="fas fa-school"></i></div><div><h4 class="text-gray-900 font-bold text-md">โรงเรียนที่ปฏิบัติหน้าที่กรรมการคุมสอบ</h4><p class="text-gray-600 mt-1">${data.proctor_name || '-'}</p></div></div></div></div>`;
+    const roomsDetail = `${data.total_rooms || 0} ห้อง <br><small class="text-muted">(รอบ1: ${data.round1_rooms || 0}, รอบ2: ${data.round2_rooms || 0}, รอบ3: ${data.round3_rooms || 0}, รอบ4: ${data.round4_rooms || 0})</small>`;
+    let html = `<div class="card card-shadow border-0 animate-fade-in-up"><div class="card-header bg-success text-white p-3"><h5 class="mb-0"><i class="bi bi-building me-2"></i> ข้อมูลสนามสอบ</h5></div><div class="card-body p-4"><div class="row g-3 mb-3"><div class="col-md-3"><div class="p-3 bg-light rounded border text-center h-100"><small class="text-muted">ผู้มีสิทธิ์สอบ</small><h3 class="text-success fw-bold">${data.total_eligible || 0}</h3><small>คน</small></div></div><div class="col-md-3"><div class="p-3 bg-light rounded border text-center h-100"><small class="text-muted">จำนวนรอบสอบ</small><h3 class="text-primary fw-bold">${data.total_round || 0}</h3><small>รอบ</small></div></div><div class="col-md-6"><div class="p-3 bg-light rounded border h-100"><small class="text-muted d-block mb-1">รายละเอียดรอบสอบ</small><span class="fw-bold text-dark">${data.detail_round || '-'}</span></div></div></div><div class="card border-warning border-opacity-25 bg-warning bg-opacity-10 mb-4"><div class="card-body py-3 d-flex align-items-center"><div class="me-3 text-warning"><i class="bi bi-mortarboard-fill fs-3"></i></div><div><small class="text-muted d-block">โรงเรียนที่เข้ารับการทดสอบ</small><h5 class="mb-0 fw-bold text-dark">${data.school_test || '-'}</h5></div></div></div><h6 class="text-muted border-bottom pb-2 mb-3"><i class="bi bi-people-fill me-2"></i> โครงสร้างคณะกรรมการ</h6><div class="table-responsive mb-4"><table class="table table-bordered table-sm text-center align-middle"><thead class="table-secondary"><tr><th>หัวหน้าสนาม</th><th>เจ้าหน้าที่ประสานงาน</th><th>เจ้ากน้าที่ระบบสนามสอบ</th><th>เจ้าหน้าที่ระบบห้องสอบ</th><th>กรรมการคุมสอบ</th><th>นักการภารโรง</th><th>รวม</th></tr></thead><tbody><tr class="fw-bold text-dark"><td>${data.head || 0}</td><td>${data.coord || 0}</td><td>${data.system_admin || 0}</td><td>${data.system_roomy || 0}</td><td>${data.proctor || 0}</td><td>${data.janitor || 0}</td><td class="bg-warning bg-opacity-25">${data.total_comme || 0}</td></tr></tbody></table></div><div class="alert alert-info d-flex align-items-center mb-0"><i class="bi bi-info-circle-fill fs-4 me-3"></i><div><strong>โรงเรียนที่ปฏิบัติหน้าที่กรรมการคุมสอบ:</strong> ${data.proctor_name || '-'}</div></div></div></div>`;
     div.innerHTML = html;
   }
-
-  // --- 4. ROOM DETAILS ---
   function renderRoomDetails(data) {
     const div = document.getElementById('content-area');
     if (!data || data.length === 0) { div.innerHTML = `<div class="text-center py-10 text-gray-400">ไม่พบข้อมูลห้องสอบ</div>`; return; }
-    let totalR1 = 0, totalR2 = 0, totalR3 = 0, totalR4 = 0;
-    let rowsHtml = '';
-    data.forEach((row, index) => {
-        const r1 = parseInt(row.round1_seats) || 0; const r2 = parseInt(row.round2_seats) || 0; const r3 = parseInt(row.round3_seats) || 0; const r4 = parseInt(row.round4_seats) || 0;
-        totalR1 += r1; totalR2 += r2; totalR3 += r3; totalR4 += r4;
-        const bgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-        rowsHtml += `<tr class="${bgClass} border-b border-gray-200 hover:bg-purple-50 transition text-gray-700"><td class="px-6 py-4 font-bold text-center border-r border-gray-200">${row.room_seq}</td><td class="px-6 py-4 text-center border-r border-gray-100">${formatNum(row.round1_seats)}</td><td class="px-6 py-4 text-center border-r border-gray-100">${formatNum(row.round2_seats)}</td><td class="px-6 py-4 text-center border-r border-gray-100">${formatNum(row.round3_seats)}</td><td class="px-6 py-4 text-center">${formatNum(row.round4_seats)}</td></tr>`;
+    let html = `<div class="row g-3">`;
+    data.forEach(room => {
+        let seatsInfo = `<div class="d-flex justify-content-between text-muted small mt-2 pt-2 border-top"><span>รอบที่ 1: <b>${room.round1_seats || 0}</b> ที่นั่ง</span><span>รอบที่ 2: <b>${room.round2_seats || 0}</b> ที่นั่ง</span><span>รอบที่ 3: <b>${room.round3_seats || 0}</b> ที่นั่ง</span><span>รอบที่ 4: <b>${room.round4_seats || 0}</b> ที่นั่ง</span></div>`;
+        html += `<div class="col-md-6 col-lg-4"><div class="card card-shadow border-0 h-100 animate-fade-in-up"><div class="card-body"><div class="d-flex justify-content-between align-items-start mb-2"><div><h5 class="fw-bold text-primary mb-1"><i class="bi bi-pc-display-horizontal me-2"></i> ${room.room_name}</h5><span class="badge bg-light text-dark border">ห้องที่ ${room.room_seq}</span></div><span class="badge bg-success">${room.room_type || 'ปกติ'}</span></div><div class="row g-2 text-sm mt-3"><div class="col-6"><small class="text-muted d-block">อาคาร</small><span class="fw-bold">${room.building || '-'}</span></div><div class="col-6"><small class="text-muted d-block">ชั้น</small><span class="fw-bold">${room.floor || '-'}</span></div><div class="col-12 mt-2"><small class="text-muted d-block">จำนวนที่นั่งสูงสุด</small><span class="fw-bold fs-5 text-dark">${room.max_seats || 0}</span> <small>ที่นั่ง</small></div></div>${seatsInfo}</div></div></div>`;
     });
-    const grandTotal = totalR1 + totalR2 + totalR3 + totalR4;
-    let html = `<div class="max-w-6xl mx-auto mt-6"><div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"><div class="bg-purple-600 px-6 py-4 border-b border-purple-700 flex justify-between items-center"><h3 class="text-white text-lg font-bold"><i class="fas fa-desktop mr-2"></i> บัญชีรายละเอียดห้องสอบ</h3><span class="bg-purple-500 text-white text-xs px-2 py-1 rounded">รวม ${data.length} ห้อง</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead class="text-xs text-gray-600 uppercase bg-gray-100 border-b border-gray-300"><tr><th class="px-6 py-3 text-center w-24 border-r border-gray-300">ห้องสอบที่</th><th class="px-6 py-3 text-center border-r border-gray-200">จำนวนที่นั่ง (รอบ 1)</th><th class="px-6 py-3 text-center border-r border-gray-200">จำนวนที่นั่ง (รอบ 2)</th><th class="px-6 py-3 text-center border-r border-gray-200">จำนวนที่นั่ง (รอบ 3)</th><th class="px-6 py-3 text-center">จำนวนที่นั่ง (รอบ 4)</th></tr></thead><tbody>${rowsHtml}<tr class="bg-gray-800 text-white font-bold border-t-2 border-purple-500 text-base"><td class="px-6 py-4 text-center border-r border-gray-600">รวม</td><td class="px-6 py-4 text-center border-r border-gray-600 text-yellow-300">${totalR1}</td><td class="px-6 py-4 text-center border-r border-gray-600 text-yellow-300">${totalR2}</td><td class="px-6 py-4 text-center border-r border-gray-600 text-yellow-300">${totalR3}</td><td class="px-6 py-4 text-center border-r border-gray-600 text-yellow-300">${totalR4}</td></tr></tbody></table></div></div><div class="mt-4 text-right"><button onclick="window.print()" class="text-gray-500 hover:text-gray-800 text-sm transition flex items-center justify-end w-full"><i class="fas fa-print mr-1"></i> พิมพ์หน้านี้</button></div></div>`;
+    html += `</div>`;
     div.innerHTML = html;
   }
-
-  // --- 5. BUDGET DETAILS (OFFICIAL) ---
   function renderBudgetDetailsOfficial(budget, field) {
     const div = document.getElementById('content-area');
-    const items = [
-        { name: 'หัวหน้าสนามสอบ', count: field.head, meet: budget.meeting_head, work: budget.head_exam_pay },
-        { name: 'เจ้าหน้าที่ประสานงาน', count: field.coord, meet: budget.meeting_coord, work: budget.coord_pay },
-        { name: 'เจ้าหน้าที่ระบบสนามสอบ', count: field.system_admin, meet: budget.meeting_system_admin, work: budget.system_admin_pay },
-        { name: 'เจ้าหน้าที่ระบบห้องสอบ', count: field.system_roomy, meet: budget.meeting_system_room, work: budget.system_room_pay },
-        { name: 'กรรมการคุมสอบ', count: field.proctor, meet: budget.meeting_proctor, work: budget.proctor_pay },
-        { name: 'นักการภารโรง', count: field.janitor, meet: budget.meeting_janitor, work: budget.janitor_pay },
-    ];
+    if (!budget || Object.keys(budget).length === 0) { div.innerHTML = `<div class="text-center py-10 text-gray-400">ยังไม่มีข้อมูลการจัดสรรงบประมาณ</div>`; return; }
+    const items = [{ name: 'หัวหน้าสนามสอบ', count: field.head, meet: budget.meeting_head, work: budget.head_exam_pay }, { name: 'เจ้าหน้าที่ประสานงาน', count: field.coord, meet: budget.meeting_coord, work: budget.coord_pay }, { name: 'เจ้าหน้าที่ระบบสนามสอบ', count: field.system_admin, meet: budget.meeting_system_admin, work: budget.system_admin_pay }, { name: 'เจ้าหน้าที่ระบบห้องสอบ', count: field.system_roomy, meet: budget.meeting_system_room, work: budget.system_room_pay }, { name: 'กรรมการคุมสอบ', count: field.proctor, meet: budget.meeting_proctor, work: budget.proctor_pay }, { name: 'นักการภารโรง', count: field.janitor, meet: budget.meeting_janitor, work: budget.janitor_pay }];
     let totalCount = 0, totalMeet = 0, totalWork = 0, tableRows = '';
     items.forEach((item, index) => {
-        let c = parseFloat(String(item.count || 0).replace(/,/g,'')) || 0;
-        let m = parseFloat(String(item.meet || 0).replace(/,/g,'')) || 0;
-        let w = parseFloat(String(item.work || 0).replace(/,/g,'')) || 0;
+        let c = parseNum(item.count); let m = parseNum(item.meet); let w = parseNum(item.work);
         totalCount += c; totalMeet += m; totalWork += w;
-        const bgClass = index % 2 === 0 ? 'bg-green-50/30' : 'bg-white';
-        tableRows += `<tr class="${bgClass} border-b border-green-100 hover:bg-green-100 transition text-gray-700"><td class="px-4 py-3 font-medium border-r border-green-200">${item.name}</td><td class="px-4 py-3 text-center border-r border-green-200">${formatNum(item.count)}</td><td class="px-4 py-3 text-right border-r border-green-200">${formatMoney(m)}</td><td class="px-4 py-3 text-right">${formatMoney(w)}</td></tr>`;
+        const bgClass = index % 2 === 0 ? 'bg-light' : 'bg-white';
+        tableRows += `<tr class="${bgClass}"><td class="px-3 py-2 border-end text-start ps-3">${item.name}</td><td class="px-3 py-2 text-center border-end">${formatNum(c)}</td><td class="px-3 py-2 text-end border-end">${formatMoney(m)}</td><td class="px-3 py-2 text-end">${formatMoney(w)}</td></tr>`;
     });
-    const facility = formatMoney(budget.facility_cost);
-    const documentCost = formatMoney(budget.document_cost);
-    const totalEligible = formatNum(field.total_eligible);
-    const totalBudget = formatMoney(budget.total_budget);
-    const bankName = budget.bank_account_name || '-';
-    const bankNum = budget.bank_account_number || '-';
-
-    let html = `
-      <div class="max-w-5xl mx-auto p-8 bg-white rounded-xl shadow-lg font-sarabun print-area">
-        <div class="mb-8"><h3 class="text-xl font-bold text-gray-800 mb-4">1. ค่าตอบแทนคณะกรรมการระดับสนามสอบ</h3><div class="overflow-hidden rounded-lg border border-green-300"><table class="w-full text-sm"><thead><tr class="bg-[#4CAF50] text-white text-center"><th class="px-4 py-3 font-medium border-r border-green-400 w-1/3">ตำแหน่ง</th><th class="px-4 py-3 font-medium border-r border-green-400">จำนวน(คน)</th><th class="px-4 py-3 font-medium border-r border-green-400">ค่าตอบแทนประชุม</th><th class="px-4 py-3 font-medium">ค่าตอบแทน<br>ปฏิบัติงาน</th></tr></thead><tbody>${tableRows}<tr class="bg-[#C8E6C9] text-gray-800 font-bold border-t-2 border-green-400"><td class="px-4 py-3 border-r border-green-400">รวม</td><td class="px-4 py-3 text-center border-r border-green-400">${formatNum(totalCount)}</td><td class="px-4 py-3 text-right border-r border-green-400">${formatMoney(totalMeet)}</td><td class="px-4 py-3 text-right">${formatMoney(totalWork)}</td></tr></tbody></table></div></div>
-        <div class="mb-6"><h3 class="text-lg font-bold text-gray-800 inline-block mr-2">2. ค่าตอบแทนการใช้คอมพิวเตอร์และการใช้สถานที่เป็นสนามสอบ</h3><div class="ml-6 mt-1 text-gray-700">จำนวนงบประมาณ <span class="font-bold text-xl mx-2 underline decoration-dotted text-green-700">${facility}</span> บาท</div></div>
-        <div class="mb-10"><h3 class="text-lg font-bold text-gray-800 inline-block mr-2">3. ค่าใช้จ่ายอื่น ๆ (เอกสารการจัดสอบ)</h3><div class="ml-6 mt-1 text-gray-700">จำนวนงบประมาณ <span class="font-bold text-xl mx-2 underline decoration-dotted text-orange-700">${documentCost}</span> บาท</div></div>
-        <div><h3 class="text-xl font-bold text-gray-800 mb-4">4. จัดสรรงบประมาณระดับสนามสอบ</h3><div class="overflow-hidden rounded-lg border border-orange-300"><table class="w-full text-sm text-center"><thead><tr class="bg-[#ED7D31] text-white"><th class="px-4 py-3 font-medium border-r border-orange-400">จำนวนผู้มีสิทธิ์สอบ</th><th class="px-4 py-3 font-medium border-r border-orange-400">จำนวนเงินที่จัดสรร</th><th class="px-4 py-3 font-medium border-r border-orange-400">ชื่อบัญชีธนาคาร</th><th class="px-4 py-3 font-medium">เลขที่บัญชีธนาคาร</th></tr></thead><tbody><tr class="bg-[#FCE4D6] text-gray-900"><td class="px-4 py-4 font-bold border-r border-orange-300">${totalEligible}</td><td class="px-4 py-4 font-bold border-r border-orange-300">${totalBudget}</td><td class="px-4 py-4 border-r border-orange-300">${bankName}</td><td class="px-4 py-4 font-mono font-bold">${bankNum}</td></tr></tbody></table></div></div>
-        <div class="text-right pt-8 mt-8 border-t border-gray-200"><button onclick="window.print()" class="bg-gray-800 hover:bg-gray-900 text-white px-5 py-2 rounded shadow transition text-sm flex items-center inline-flex"><i class="fas fa-print mr-2"></i> พิมพ์เอกสาร</button></div>
-      </div>`;
+    const facility = formatMoney(budget.facility_cost); const documentCost = formatMoney(budget.document_cost); const totalEligible = formatNum(field.total_eligible); const totalBudget = formatMoney(budget.total_budget); const bankName = budget.bank_account_name || '-'; const bankNum = budget.bank_account_number || '-';
+    let html = `<div class="card card-shadow border-0 animate-fade-in-up"><div class="card-header bg-warning text-dark p-3 d-flex justify-content-between align-items-center"><h5 class="mb-0 fw-bold"><i class="bi bi-cash-coin me-2"></i> รายละเอียดค่าใช้จ่าย </h5><button onclick="window.print()" class="btn btn-sm btn-dark"><i class="bi bi-printer me-1"></i> พิมพ์</button></div><div class="card-body p-4 font-sarabun"><h6 class="fw-bold text-success mb-3">1. ค่าตอบแทนคณะกรรมการระดับสนามสอบ</h6><div class="table-responsive mb-4 border rounded"><table class="table table-sm mb-0"><thead class="table-success text-center"><tr><th class="border-end">ตำแหน่ง</th><th class="border-end">จำนวน (คน)</th><th class="border-end">ค่าตอบแทนประชุม</th><th>ค่าตอบแทนปฏิบัติงาน</th></tr></thead><tbody>${tableRows}<tr class="table-secondary fw-bold"><td class="text-center border-end">รวม</td><td class="text-center border-end">${formatNum(totalCount)}</td><td class="text-end border-end text-success">${formatMoney(totalMeet)}</td><td class="text-end text-primary">${formatMoney(totalWork)}</td></tr></tbody></table></div><div class="row g-4 mb-4"><div class="col-md-6"><div class="p-3 bg-light rounded border h-100"><h6 class="fw-bold text-primary">2. ค่าตอบแทนสถานที่/คอมพิวเตอร์</h6><div class="d-flex justify-content-between align-items-center mt-2"><span>งบประมาณ:</span><span class="fs-5 fw-bold text-dark border-bottom border-success border-2">${facility}</span><span class="text-muted small">บาท</span></div></div></div><div class="col-md-6"><div class="p-3 bg-light rounded border h-100"><h6 class="fw-bold text-primary">3. ค่าใช้จ่ายอื่นๆ (ค่าเอกสาร)</h6><div class="d-flex justify-content-between align-items-center mt-2"><span>งบประมาณ:</span><span class="fs-5 fw-bold text-dark border-bottom border-warning border-2">${documentCost}</span><span class="text-muted small">บาท</span></div></div></div></div><div class="p-4 bg-orange-light rounded border border-warning"><h6 class="fw-bold text-danger mb-3">4. สรุปการจัดสรรงบประมาณ</h6><div class="table-responsive bg-white rounded border"><table class="table table-bordered mb-0 text-center align-middle"><thead class="bg-warning text-dark"><tr><th>ผู้มีสิทธิ์สอบ (คน)</th><th>ยอดโอนรวม (บาท)</th><th>ชื่อบัญชี</th><th>เลขที่บัญชี</th></tr></thead><tbody><tr class="fw-bold"><td>${totalEligible}</td><td class="fs-5 text-success">${totalBudget}</td><td>${bankName}</td><td class="font-monospace">${bankNum}</td></tr></tbody></table></div></div></div></div><style>.bg-orange-light { background-color: #fff3e0; } @media print { body * { visibility: hidden; } #content-area, #content-area * { visibility: visible; } #content-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }</style>`;
     div.innerHTML = html;
   }
-
-  // --- 6. STANDARD TABLE ---
-  function renderTable(menuItem, data) {
+  function renderDocumentList(data) {
     const div = document.getElementById('content-area');
-    if (!data || data.length === 0) { div.innerHTML = `<div class="text-center py-10 text-gray-400">ไม่พบข้อมูล</div>`; return; }
-    const config = COLUMN_CONFIG[menuItem.table] || Object.keys(data[0]).filter(k => k !== '_rowIndex').map(k => ({ key: k, label: k }));
-    let html = `<div class="p-4"><table id="dataTableID" class="stripe hover row-border order-column nowrap w-full text-sm" style="width:100%"><thead><tr>`;
-    config.forEach(col => html += `<th>${col.label}</th>`);
-    let allowEdit = (currentUser.role === 'admin' || (currentUser.role === 'school' && ['SchoolInfo','BudgetDetails'].includes(menuItem.table)));
-    if (currentUser.role === 'school' && (menuItem.table === 'SchoolInfo' || menuItem.table === 'FieldDetails' || menuItem.table === 'RoomDetails' || menuItem.table === 'BudgetDetails')) allowEdit = false;
-    if (allowEdit) html += `<th>จัดการ</th>`;
-    html += `</tr></thead><tbody>`;
-    data.forEach(row => {
-      html += `<tr>`;
-      config.forEach(col => {
-         let val = row[col.key] || '-';
-         if(String(val).startsWith('http')) val = `<a href="${val}" target="_blank" class="text-blue-500"><i class="fas fa-external-link-alt"></i></a>`;
-         if(col.key === 'status') val = (val === 'Active') ? '<span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">Active</span>' : '<span class="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">Inactive</span>';
-         html += `<td>${val}</td>`;
-      });
-      if (allowEdit) {
-        const deleteBtn = (currentUser.role === 'admin') ? `<button onclick="deleteItem(${row._rowIndex})" class="text-red-500 hover:text-red-700 p-2 rounded-full transition transform hover:scale-110 ml-1"><i class="fas fa-trash"></i></button>` : '';
-        html += `<td class="text-center whitespace-nowrap"><button onclick="editItem(${row._rowIndex})" class="text-blue-600 hover:text-blue-800 p-2 rounded-full transition transform hover:scale-110"><i class="fas fa-edit"></i></button>${deleteBtn}</td>`;
-      }
-      html += `</tr>`;
+    if (!data || data.length === 0) { div.innerHTML = `<div class="text-center py-12 bg-white border border-dashed border-gray-300 rounded-xl"><div class="text-secondary mb-2"><i class="bi bi-file-earmark-x fs-1"></i></div><p class="text-muted">ไม่พบเอกสารสำหรับคุณ</p></div>`; return; }
+    let html = `<div class="max-w-5xl mx-auto space-y-3 animate-fade-in-up">`;
+    data.forEach(doc => {
+        let icon = 'bi-file-earmark-text'; let colorClass = 'bg-primary text-white';
+        if(doc.category === 'คู่มือ') { icon = 'bi-book'; colorClass = 'bg-info text-dark'; }
+        if(doc.category === 'คำสั่ง') { icon = 'bi-megaphone'; colorClass = 'bg-danger text-white'; }
+        if(doc.category === 'การเงิน') { icon = 'bi-cash-coin'; colorClass = 'bg-success text-white'; }
+        html += `<div class="card border-0 shadow-sm hover-shadow transition-all"><div class="card-body d-flex align-items-center p-3"><div class="rounded-circle ${colorClass} d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; min-width: 48px;"><i class="bi ${icon} fs-4"></i></div><div class="flex-grow-1 min-w-0"><h6 class="mb-1 fw-bold text-dark text-truncate">${doc.doc_name}</h6><div class="d-flex gap-2"><span class="badge bg-light text-secondary border">${doc.category}</span><span class="badge bg-light text-primary border border-primary-subtle">For: ${doc.target_role}</span></div></div><div class="ms-3"><a href="${doc.link_url}" target="_blank" class="btn btn-outline-primary btn-sm d-flex align-items-center"><i class="bi bi-download me-2"></i> <span class="d-none d-sm-inline">ดาวน์โหลด</span></a></div></div></div>`;
     });
-    html += `</tbody></table></div>`;
+    html += `</div><style>.hover-shadow:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important; } .transition-all { transition: all 0.2s ease; }</style>`;
     div.innerHTML = html;
-    setTimeout(() => {
-        if ($.fn.DataTable.isDataTable('#dataTableID')) $('#dataTableID').DataTable().destroy();
-        $('#dataTableID').DataTable({
-            responsive: false, scrollX: true, language: { url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/th.json" },
-            dom: '<"flex flex-col md:flex-row justify-between items-center mb-4 gap-4" <"flex items-center space-x-2"lB> f >rtip',
-            buttons: [ { extend: 'excelHtml5', text: '<i class="fas fa-file-excel mr-1"></i> Excel', className: 'dt-button' }, { extend: 'print', text: '<i class="fas fa-print mr-1"></i> พิมพ์ / PDF', className: 'dt-button', autoPrint: true, customize: function(win) { $(win.document.body).css('font-family', 'Sarabun'); } } ]
-        });
-    }, 50);
   }
 
-  function renderCards(menuItem, data) {
-    const div = document.getElementById('card-area');
-    div.innerHTML = '';
-    if (!data || data.length === 0) { div.innerHTML = `<p class="col-span-3 text-center text-gray-400">ไม่พบข้อมูล</p>`; return; }
-    data.forEach(row => {
-      let cardHtml = '';
-      const adminControls = (currentUser.role === 'admin') ? `<div class="flex space-x-2"><button onclick="editItem(${row._rowIndex})" class="text-gray-400 hover:text-blue-600 transition"><i class="fas fa-edit"></i></button><button onclick="deleteItem(${row._rowIndex})" class="text-gray-400 hover:text-red-600 transition"><i class="fas fa-trash"></i></button></div>` : '';
-      if (menuItem.table === 'Setting') {
-         cardHtml = `<div class="admin-card bg-white rounded-xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition"><div class="flex justify-between items-start mb-3"><div class="flex items-center"><div class="p-2 bg-gray-100 rounded-lg text-gray-500 mr-3"><i class="fas fa-cog"></i></div><h3 class="font-bold text-gray-700 text-md">${row.setting_key}</h3></div>${adminControls}</div><p class="text-sm text-gray-500 mb-3 h-10 overflow-hidden line-clamp-2">${row.description || '-'}</p><div class="bg-gray-50 p-3 rounded-lg text-sm font-mono text-gray-700 break-all border border-gray-100">${row.setting_value}</div></div>`;
-      }
-      div.innerHTML += cardHtml;
-    });
-  }
+  // --- MODAL & FORM (FIXED) ---
+  function openModal(key = null) {
+    const config = COLUMN_CONFIG[currentSheet];
+    let row = {};
+    const isAddMode = !key; // เช็คว่าเป็นโหมดเพิ่มข้อมูลหรือไม่
 
-  function addItem() {
-    operationMode = 'add'; currentRowIndex = null;
-    document.getElementById('modal-title').innerText = 'เพิ่มข้อมูลใหม่';
-    document.getElementById('modal-icon').className = 'fas fa-plus text-blue-600';
-    renderModalForm({});
-    document.getElementById('edit-modal').classList.remove('hidden');
-  }
+    if (!isAddMode) {
+       // โหมดแก้ไข: หาแถวข้อมูล
+       if(currentSheet === 'Users') row = currentData.find(r => String(r.username) === String(key));
+       else if(['SchoolInfo','FieldDetails','RoomDetails','Budget'].includes(currentSheet)) row = currentData.find(r => String(r.school_id) === String(key));
+       else if(currentSheet === 'Documents') row = currentData.find(r => String(r.doc_id) === String(key));
+       else if(currentSheet === 'Settings') row = currentData.find(r => String(r.setting_key) === String(key));
+       else row = currentData.find(r => r.id == key);
+       $('#modalTitle').text('แก้ไขข้อมูล');
+    } else { 
+       $('#modalTitle').text('เพิ่มข้อมูลใหม่'); 
+    }
+    
+    $('#keyField').val(getKeyFieldName(currentSheet));
+    $('#keyValue').val(key || '');
 
-  function editItem(rowIndex) {
-    operationMode = 'edit'; currentRowIndex = rowIndex;
-    const item = currentTableData.find(row => row._rowIndex === rowIndex);
-    if (!item) return;
-    document.getElementById('modal-title').innerText = 'แก้ไขข้อมูล';
-    document.getElementById('modal-icon').className = 'fas fa-edit text-blue-600';
-    renderModalForm(item);
-    document.getElementById('edit-modal').classList.remove('hidden');
-  }
-  
-  function renderModalForm(itemData) {
-    const formDiv = document.getElementById('modal-form-content');
-    formDiv.innerHTML = '';
-    const config = COLUMN_CONFIG[currentMenu.table] || (currentTableData.length > 0 ? Object.keys(currentTableData[0]).filter(k => k !== '_rowIndex').map(k => ({ key: k, label: k })) : []);
-    config.forEach(f => {
-      const val = itemData[f.key] || '';
-      const isReadonly = (operationMode === 'edit' && f.readonly);
-      const readonlyAttr = isReadonly ? 'disabled' : '';
-      const bgClass = isReadonly ? 'bg-gray-100 text-gray-500' : 'bg-white';
-      formDiv.innerHTML += `<div class="mb-3"><label class="block text-sm font-medium text-gray-700 mb-1">${f.label}</label>`;
-      if (currentMenu.table === 'Documents' && (f.key === 'category' || f.key === 'target_role')) {
-           const options = f.key === 'category' ? ['หนังสือราชการ', 'คำสั่ง', 'คู่มือ', 'เอกสารแนวทาง', 'อื่น ๆ'] : ['all', 'school', 'admin'];
-           let selectHtml = `<select id="input-${f.key}" ${readonlyAttr} class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition ${bgClass}">`;
-           selectHtml += `<option value="" disabled ${!val ? 'selected' : ''}>-- กรุณาเลือก --</option>`;
-           options.forEach(opt => { selectHtml += `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`; });
-           selectHtml += `</select>`; formDiv.innerHTML += selectHtml;
+    let html = '';
+    config.forEach(c => {
+      // School Restriction: Hide is_exam_center
+      if(currentUser.role === 'school' && c.key === 'is_exam_center') return;
+
+      let val = row[c.key] || '';
+      // Auto-fill School ID/Name
+      if(!key && c.key === 'school_id' && currentUser.role === 'school') val = currentUser.ref_id;
+      if(!key && c.key === 'school_name' && currentUser.role === 'school') val = currentUser.name;
+      
+      // ✅ LOGIC READONLY (หัวใจสำคัญ)
+      let readOnlyAttr = '';
+      
+      // 1. ถ้าเป็น Admin กำลัง "เพิ่ม" (Add Mode) -> ปลดล็อคทุกอย่าง (ยกเว้นที่ตั้งค่าใน HTML ไว้เอง)
+      if (currentUser.role === 'admin' && isAddMode) {
+          readOnlyAttr = ''; 
       } 
-      else if (currentMenu.table === 'Users' && (f.key === 'role' || f.key === 'status')) {
-           let options = f.key === 'role' ? ['admin', 'school', 'supervisor'] : ['Active', 'Inactive'];
-           let selectHtml = `<select id="input-${f.key}" ${readonlyAttr} class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition ${bgClass}">`;
-           options.forEach(opt => { const isSelected = String(val) === String(opt) ? 'selected' : ''; selectHtml += `<option value="${opt}" ${isSelected}>${opt}</option>`; });
-           selectHtml += `</select>`; formDiv.innerHTML += selectHtml;
+      // 2. ถ้าเป็น Admin กำลัง "แก้ไข" (Edit Mode) -> ล็อคเฉพาะ Key หลัก (ตาม config readonly: true)
+      else if (currentUser.role === 'admin' && !isAddMode) {
+          readOnlyAttr = c.readonly ? 'readonly' : '';
       }
-      else {
-           formDiv.innerHTML += `<input type="text" id="input-${f.key}" value="${val}" ${readonlyAttr} class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition ${bgClass}">`;
+      // 3. ถ้าเป็น School -> ล็อค ID, Name และช่องที่ Config บอกว่า Readonly
+      else if (currentUser.role === 'school') {
+          if (c.key === 'school_id' || c.key === 'school_name' || c.readonly) {
+              readOnlyAttr = 'readonly';
+          }
       }
-      formDiv.innerHTML += `</div>`;
+
+      let inputHtml = '';
+      if(c.type === 'select') {
+         let opts = c.options.map(o => `<option value="${o}" ${String(val)===String(o)?'selected':''}>${o}</option>`).join('');
+         // Select ถ้า readonly จะใช้ disabled แทน
+         let disabledAttr = readOnlyAttr ? 'disabled' : '';
+         inputHtml = `<select name="${c.key}" id="input-${c.key}" class="form-select" ${disabledAttr}>${opts}</select>`;
+         // Hack: ส่งค่าไปแม้จะ disabled (ด้วย input hidden) หรือปลดตอน submit (แต่ในที่นี้ใช้ serializeArray อาจต้องระวัง)
+         // *วิธีแก้ที่ง่ายที่สุดสำหรับ Select readonly คือเพิ่ม input hidden ค่าเดิมไว้*
+      } else if(c.type === 'textarea') {
+         inputHtml = `<textarea name="${c.key}" id="input-${c.key}" class="form-control" rows="3" ${readOnlyAttr}>${val}</textarea>`;
+      } else {
+         inputHtml = `<input type="${c.type==='number'?'number':'text'}" name="${c.key}" id="input-${c.key}" class="form-control" value="${val}" ${readOnlyAttr}>`;
+      }
+      
+      let colClass = 'col-md-6';
+      if(c.type === 'textarea') colClass = 'col-12';
+      
+      html += `<div class="${colClass} mb-3"><label class="form-label small text-muted">${c.label}</label>${inputHtml}</div>`;
     });
+    $('#formFields').html(html);
+    new bootstrap.Modal('#dataModal').show();
+  }
+
+  function getKeyFieldName(sheet) {
+     if(sheet === 'Users') return 'username';
+     if(['SchoolInfo','FieldDetails','RoomDetails','Budget'].includes(sheet)) return 'school_id';
+     if(sheet === 'Documents') return 'doc_id';
+     if(sheet === 'Settings') return 'setting_key';
+     return 'id';
   }
 
   function saveData() {
-    closeModal();
-    let formData = {};
-    const config = COLUMN_CONFIG[currentMenu.table] || (currentTableData.length > 0 ? Object.keys(currentTableData[0]).filter(k => k !== '_rowIndex').map(k => ({ key: k })) : []);
-    config.forEach(f => { const el = document.getElementById(`input-${f.key}`); if (el && (operationMode === 'add' || !el.disabled)) formData[f.key] = el.value; });
-
-    if (operationMode === 'edit') {
-        const index = currentTableData.findIndex(r => r._rowIndex === currentRowIndex);
-        if (index !== -1) Object.assign(currentTableData[index], formData);
-        processAndRender(currentTableData, currentMenu);
-        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
-        Toast.fire({ icon: 'success', title: 'บันทึกเรียบร้อย' });
-    } else {
-        toggleLoader(true); 
-    }
-
-    DATA_CACHE[currentMenu.table] = currentTableData;
-
-    const backendFunc = (operationMode === 'add') ? google.script.run.apiAddData(currentMenu.table, formData) 
-                                                  : google.script.run.apiUpdateDataByRow(currentMenu.table, currentRowIndex, formData);
-    backendFunc.withSuccessHandler(res => {
-      if (operationMode === 'add') {
-          loadContent(currentMenu, true); 
-          Swal.fire({ icon: 'success', title: 'เพิ่มข้อมูลสำเร็จ', timer: 1000, showConfirmButton: false });
-      }
-    }).withFailureHandler(err => {
-        Swal.fire('เกิดข้อผิดพลาด', 'บันทึกข้อมูลไม่สำเร็จ', 'error');
-        loadContent(currentMenu, true); 
+    const data = {};
+    // Serialize form แต่ต้องระวัง disabled inputs จะไม่ถูกส่งมา
+    // ดังนั้นเราจะวนลูปเอาค่าจาก ID โดยตรงเพื่อความชัวร์ (รวมถึงค่าที่ readonly/disabled)
+    const config = COLUMN_CONFIG[currentSheet];
+    config.forEach(c => {
+        let el = document.getElementById(`input-${c.key}`);
+        if(el) data[c.key] = el.value;
     });
+
+    if(currentUser.role === 'school') data['school_id'] = currentUser.ref_id;
+    
+    $('#dataModal').modal('hide'); 
+    $('#loading').show();
+    
+    const isUpdate = $('#keyValue').val() !== '';
+    
+    google.script.run.withSuccessHandler(res => {
+       const r = JSON.parse(res);
+       if(r.status === 'success') {
+          Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1000, showConfirmButton: false });
+          loadTable(currentSheet, $('#page-title').text());
+       } else { Swal.fire('Error', r.message, 'error'); $('#loading').hide(); }
+    }).withFailureHandler(showError).apiHandleRequest({ action: isUpdate ? 'update' : 'create', sheetName: currentSheet, data: data });
   }
 
-  function deleteItem(rowIndex) {
-    Swal.fire({ title: 'ยืนยันการลบ?', text: "ลบแล้วกู้คืนไม่ได้นะ", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'ลบเลย', cancelButtonText: 'ยกเลิก' }).then((result) => {
-      if (result.isConfirmed) {
-        currentTableData = currentTableData.filter(r => r._rowIndex !== rowIndex);
-        DATA_CACHE[currentMenu.table] = currentTableData;
-        processAndRender(currentTableData, currentMenu);
-        
-        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
-        Toast.fire({ icon: 'success', title: 'ลบข้อมูลแล้ว' });
-
-        google.script.run.withSuccessHandler(res => {}).withFailureHandler(err => { Swal.fire('Error', 'ลบไม่สำเร็จ', 'error'); loadContent(currentMenu, true); }).apiDeleteDataByRow(currentMenu.table, rowIndex);
-      }
-    });
+  function deleteData(key) {
+     Swal.fire({ title: 'ยืนยันการลบ?', text: 'ข้อมูลจะหายไปถาวร', icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบข้อมูล', confirmButtonColor: '#d33' }).then(r => {
+        if(r.isConfirmed) {
+           $('#loading').show();
+           google.script.run.withSuccessHandler(() => { loadTable(currentSheet, $('#page-title').text()); }).apiHandleRequest({ action: 'delete', sheetName: currentSheet, id: key });
+        }
+     });
   }
-
-  function closeModal() { document.getElementById('edit-modal').classList.add('hidden'); }
-  function toggleLoader(show) { const el = document.getElementById('loader'); show ? el.classList.remove('hidden') : el.classList.add('hidden'); }
-  function refreshData() { if(currentMenu) loadContent(currentMenu, true); }
 </script>
