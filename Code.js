@@ -1,118 +1,294 @@
-// ==============================================
-// 1. CONFIGURATION
-// ==============================================
-// ⚠️ อย่าลืมตรวจสอบ ID ของ Google Sheet ให้ถูกต้อง
-const SPREADSHEET_ID = '17buEkY9XH7AH5nV03X1ga2dovslmRZTj_viogE466aY'; 
+/**
+ * O-NET Management System (Clean Data Version)
+ * Developer: Phattaraphon Kaewsena
+ */
 
-// ==============================================
-// 2. CORE FUNCTIONS
-// ==============================================
-function doGet(e) {
-  return HtmlService.createTemplateFromFile('Index')
+const SPREADSHEET_ID = 'ใส่ ID Google Sheet ที่เป็น Database'; 
+
+const SHEETS = {
+  USERS: 'Users',
+  SCHOOL_INFO: 'SchoolInfo',
+  FIELD: 'FieldDetails',
+  ROOM: 'RoomDetails',
+  BUDGET: 'BudgetDetails',
+  DOCUMENTS: 'Documents',
+  SETTINGS: 'Setting'
+};
+
+function doGet() {
+  return HtmlService.createTemplateFromFile('index')
     .evaluate()
-    .setTitle('ระบบบริหารจัดการทดสอบ O-NET ม.6')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    .setTitle('ระบบบริหารจัดการการสอบ O-NET สพม.พิษณุโลก อุตรดิตถ์')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-function getSheetData(sheetName) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return [];
-  
-  const data = sheet.getDataRange().getDisplayValues();
-  const headers = data.shift(); 
-  
-  return data.map((row, index) => {
-    let obj = { '_rowIndex': index + 2 }; 
-    headers.forEach((h, i) => obj[h] = row[i]);
-    return obj;
-  });
-}
-
-// ==============================================
-// 3. API SERVICES
-// ==============================================
-
-function apiLogin(username, password) {
-  const users = getSheetData('Users');
-  const user = users.find(u => String(u.username) === String(username) && String(u.password) === String(password));
-  
-  if (!user) return { status: false, msg: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
-  if (user.status !== 'Active') return { status: false, msg: 'บัญชีของคุณถูกระงับ (Inactive)' };
-
-  const settings = getSheetData('Setting');
-  const logo = settings.find(s => s.setting_key === 'logo_url');
-
-  return { status: true, user: user, config: { logo: logo ? logo.setting_value : '' } };
-}
-
-function apiGetData(table, role, userRefId) {
-  let data = getSheetData(table);
-
-  // 1. Logic เดิม (กรองข้อมูลโรงเรียน)
-  if (role === 'school' && ['SchoolInfo', 'FieldDetails', 'RoomDetails', 'BudgetDetails'].includes(table)) {
-    return data.filter(r => String(r.school_id) === String(userRefId));
+function getDB() {
+  try {
+    if (SPREADSHEET_ID && SPREADSHEET_ID !== 'ใส่ ID Google Sheet ที่เป็น Database') {
+      return SpreadsheetApp.openById(SPREADSHEET_ID);
+    }
+    return SpreadsheetApp.getActiveSpreadsheet();
+  } catch (e) {
+    throw new Error("ไม่สามารถเชื่อมต่อ Google Sheet ได้ (ตรวจสอบ ID)");
   }
-
-  // 🟢 2. Logic ใหม่สำหรับ Documents (V1 Style Filtering)
-  if (table === 'Documents') {
-    return data.filter(row => {
-      let target = String(row.target_role || '').toLowerCase();
-      
-      if (role === 'admin') return true; // Admin เห็นหมด
-      if (target === 'all') return true; // All เห็นทุกคน
-      if (target === 'school' && role === 'school') return true; // School เห็นเฉพาะ School
-      
-      return false;
-    });
-  }
-
-  return data;
 }
 
+// --- API HANDLING ---
+function apiHandleRequest(request) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    return JSON.stringify({ status: 'error', message: 'ระบบกำลังทำงานหนัก กรุณาลองใหม่' });
+  }
+  
+  try {
+    const ss = getDB();
+    const action = request.action;
+    const data = request.data;
+    
+    // 1. LOGIN
+    if (action === 'login') {
+      const usersSheet = ss.getSheetByName('Users') || ss.getSheetByName(SHEETS.USERS);
+      if(!usersSheet) throw new Error("ไม่พบ Sheet Users");
+      
+      const rows = usersSheet.getDataRange().getValues();
+      const headers = rows.shift().map(h => String(h).toLowerCase().trim());
+      
+      const uIdx = headers.indexOf('username');
+      const pIdx = headers.indexOf('password');
+      
+      const foundRow = rows.find(row => 
+        row[uIdx] && String(row[uIdx]).trim() !== "" && // Username ต้องไม่ว่าง
+        String(row[uIdx]) === String(data.username) && 
+        String(row[pIdx]) === String(data.password)
+      );
+
+      if (foundRow) {
+        let rObj = {};
+        headers.forEach((h, k) => rObj[h] = foundRow[k]);
+        
+        if(String(rObj.status).toLowerCase() === 'inactive' || rObj.status === false) {
+           return JSON.stringify({ status: 'error', message: 'บัญชีถูกระงับ' });
+        }
+
+        return JSON.stringify({ 
+          status: 'success', 
+          user: {
+            id: rObj.id,
+            role: rObj.role,
+            ref_id: rObj.ref_id,
+            name: rObj.display_name || rObj.username
+          } 
+        });
+      }
+      return JSON.stringify({ status: 'error', message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+    }
+
+    // 2. DASHBOARD
+    if (action === 'getDashboard') {
+      return getDashboardData(ss);
+    }
+
+    // 3. CRUD GENERIC
+    let sheetName = request.sheetName;
+    if(sheetName === 'Settings') sheetName = 'Setting';
+    if(sheetName === 'Budget') sheetName = 'BudgetDetails';
+
+    let sheet = ss.getSheetByName(sheetName);
+    if(!sheet) throw new Error("Sheet not found: " + sheetName);
+
+    if (action === 'read') {
+      const rows = sheet.getDataRange().getValues();
+      const headers = rows.shift().map(h => String(h).toLowerCase().trim());
+      
+      // ✅ STRICT FILTER: กำหนดคีย์หลักของแต่ละ Sheet
+      let primaryKey = 'id';
+      if(headers.includes('username')) primaryKey = 'username';       // Users
+      else if(headers.includes('school_id')) primaryKey = 'school_id'; // SchoolInfo, Field, Budget
+      else if(headers.includes('doc_id')) primaryKey = 'doc_id';       // Documents
+      else if(headers.includes('setting_key')) primaryKey = 'setting_key'; // Setting
+
+      const pkIndex = headers.indexOf(primaryKey);
+
+      const cleanResult = rows.map((r, i) => {
+        // เงื่อนไข: ถ้าหาคีย์หลักเจอ และค่าในคีย์หลักเป็นค่าว่าง -> ถือเป็นแถวขยะ ให้ตัดทิ้ง
+        if (pkIndex !== -1 && (!r[pkIndex] || String(r[pkIndex]).trim() === "")) return null;
+        
+        // Fallback: ถ้าไม่มีคีย์หลัก ให้เช็คว่าทั้งแถวว่างเปล่าหรือไม่
+        const hasData = r.some(cell => String(cell).trim() !== "");
+        if (!hasData) return null;
+
+        let obj = { _rowIndex: i + 2 }; 
+        headers.forEach((h, colIndex) => obj[h] = r[colIndex]);
+        return obj;
+      }).filter(item => item !== null); // กรองค่า null ออก
+
+      return JSON.stringify({ status: 'success', data: cleanResult });
+    }
+    
+    // --- CREATE ---
+    if (action === 'create') {
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+                           .map(h => String(h).toLowerCase().trim());
+      
+      // ✅ ปรับปรุง: ตรวจสอบและบังคับ Format เป็น Text สำหรับเบอร์โทร
+      const newRow = headers.map(header => {
+         let val = data[header] || '';
+         // ถ้าเป็นช่องเบอร์โทร และมีค่า ให้เติม ' นำหน้า
+         if ((header === 'director_phone' || header === 'coord_phone') && val !== '') {
+             return "'" + val;
+         }
+         return val;
+      });
+
+      sheet.appendRow(newRow);
+      return JSON.stringify({ status: 'success', message: 'บันทึกสำเร็จ' });
+    }
+
+    // --- UPDATE ---
+    if (action === 'update') {
+      const rows = sheet.getDataRange().getValues();
+      const headers = rows[0].map(h => String(h).toLowerCase().trim());
+      
+      let keyField = 'id';
+      if(headers.includes('username')) keyField = 'username';
+      else if(headers.includes('school_id')) keyField = 'school_id';
+      else if(headers.includes('doc_id')) keyField = 'doc_id';
+      else if(headers.includes('setting_key')) keyField = 'setting_key';
+
+      const updateKey = data[keyField]; 
+      const keyIndex = headers.indexOf(keyField);
+      
+      let rowIndex = -1;
+      for(let i=1; i<rows.length; i++){
+        if(String(rows[i][keyIndex]) === String(updateKey)) { rowIndex = i + 1; break; }
+      }
+      
+      if(rowIndex > -1) {
+        const currentData = rows[rowIndex-1];
+        
+        // ✅ ปรับปรุง: ตรวจสอบและบังคับ Format เป็น Text สำหรับเบอร์โทร
+        const updateRow = headers.map((header, i) => {
+            let val = data[header] !== undefined ? data[header] : currentData[i];
+            
+            // ถ้าเป็นช่องเบอร์โทร และมีค่า
+            if ((header === 'director_phone' || header === 'coord_phone') && val !== '') {
+                // เช็คก่อนว่ามี ' หรือยัง ถ้าไม่มีให้เติม
+                if (String(val).charAt(0) !== "'") {
+                    return "'" + val;
+                }
+            }
+            return val;
+        });
+
+        sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn()).setValues([updateRow]);
+        return JSON.stringify({ status: 'success', message: 'อัปเดตสำเร็จ' });
+      } else {
+        return apiHandleRequest({ ...request, action: 'create' });
+      }
+    }
+
+    if (action === 'delete') {
+       const rows = sheet.getDataRange().getValues();
+       const headers = rows[0].map(h => String(h).toLowerCase().trim());
+       let keyField = 'id';
+       if(headers.includes('username')) keyField = 'username';
+       else if(headers.includes('school_id')) keyField = 'school_id';
+       else if(headers.includes('doc_id')) keyField = 'doc_id';
+       else if(headers.includes('setting_key')) keyField = 'setting_key';
+
+       const deleteKey = request.id;
+       const keyIndex = headers.indexOf(keyField);
+
+       for(let i=1; i<rows.length; i++){
+         if(String(rows[i][keyIndex]) === String(deleteKey)) {
+           sheet.deleteRow(i + 1);
+           return JSON.stringify({ status: 'success', message: 'ลบข้อมูลสำเร็จ' });
+         }
+       }
+       throw new Error("Data not found");
+    }
+
+  } catch (e) {
+    return JSON.stringify({ status: 'error', message: e.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// --- API: Get School Budget Bundle (สำหรับ School View) ---
 function apiGetSchoolBudgetBundle(schoolId) {
-  const budgetSheet = getSheetData('BudgetDetails');
-  const fieldSheet = getSheetData('FieldDetails');
+  const ss = getDB();
+  const budgetData = getRowDataBySchoolId(ss, 'BudgetDetails', schoolId);
+  const fieldData = getRowDataBySchoolId(ss, 'FieldDetails', schoolId);
   
-  const budget = budgetSheet.find(r => String(r.school_id) === String(schoolId)) || {};
-  const field = fieldSheet.find(r => String(r.school_id) === String(schoolId)) || {};
-  
-  return { budget: budget, field: field };
-}
-
-function apiUpdateDataByRow(table, rowIndex, formData) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(table);
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const range = sheet.getRange(rowIndex, 1, 1, sheet.getLastColumn());
-  let rowData = range.getValues()[0];
-
-  headers.forEach((header, index) => {
-    if (formData.hasOwnProperty(header)) rowData[index] = formData[header];
+  return JSON.stringify({
+    status: 'success',
+    data: {
+      budget: budgetData || {},
+      field: fieldData || {}
+    }
   });
-
-  range.setValues([rowData]);
-  return { status: true, msg: 'บันทึกข้อมูลเรียบร้อยแล้ว' };
 }
 
-function apiAddData(table, formData) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(table);
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  let newRow = headers.map(header => formData[header] || '');
-  sheet.appendRow(newRow);
-  return { status: true, msg: 'เพิ่มข้อมูลเรียบร้อยแล้ว' };
+// Helper Function
+function getRowDataBySchoolId(ss, sheetName, schoolId) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return null;
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return null;
+  const headers = data.shift().map(h => String(h).toLowerCase().trim());
+  const idIndex = headers.indexOf('school_id');
+  if (idIndex === -1) return null;
+  const foundRow = data.find(r => String(r[idIndex]) === String(schoolId));
+  if (foundRow) {
+    let obj = {};
+    headers.forEach((h, i) => obj[h] = foundRow[i]);
+    return obj;
+  }
+  return null;
 }
 
-function apiDeleteDataByRow(table, rowIndex) {
-   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-   const sheet = ss.getSheetByName(table);
-   if (rowIndex < 2) return { status: false, msg: 'ไม่สามารถลบแถวหัวตารางได้' };
-   sheet.deleteRow(rowIndex);
-   return { status: true, msg: 'ลบข้อมูลเรียบร้อยแล้ว' };
+function getDashboardData(ss) {
+  const userSheet = ss.getSheetByName('Users');
+  const uData = userSheet.getDataRange().getValues();
+  const uHeaders = uData.shift().map(h => String(h).toLowerCase().trim());
+  const h = {};
+  uHeaders.forEach((col, i) => h[col] = i);
+  
+  const schools = uData
+    .filter(r => r[h['role']] === 'school' && r[h['username']]) // เพิ่มเช็ค username ต้องไม่ว่าง
+    .map(r => ({
+      id: r[h['ref_id']], 
+      name: r[h['display_name']] || ('โรงเรียน ' + r[h['ref_id']]),
+      ref_id: r[h['ref_id']]
+    }));
+  
+  const getIds = (possibilities) => {
+    for (let name of possibilities) {
+       let sheet = ss.getSheetByName(name);
+       if(sheet) {
+         let data = sheet.getDataRange().getValues();
+         if(data.length <= 1) return [];
+         let headers = data.shift().map(val => String(val).toLowerCase().trim());
+         let idx = headers.indexOf('school_id');
+         if(idx === -1) return [];
+         return [...new Set(data.map(r => String(r[idx])).filter(v => v && v.trim() !== ''))];
+       }
+    }
+    return [];
+  };
+
+  const checkList = {
+    info: getIds(['SchoolInfo']),
+    field: getIds(['FieldDetails']),
+    room: getIds(['RoomDetails']),
+    budget: getIds(['BudgetDetails', 'Budget'])
+  };
+  
+  return JSON.stringify({ status: 'success', data: { schools: schools, checks: checkList } });
 }
